@@ -1,7 +1,6 @@
 from flask import Flask, render_template, redirect, url_for
 import os, json, glob
 from collections import deque
-from pool_spotter import PoolSpotter
 
 app = Flask('app', static_url_path='/static')
 
