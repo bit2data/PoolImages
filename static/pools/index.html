@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+<title>Pools</title>
+<style type="text/css">
+  html { height: 100% }
+  body { height: 100%; margin: 0; padding: 0 }
+  #map-canvas { height: 100% }
+</style>
+<script type="text/javascript"
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBZnCWLhb4CE2oD4TmrpcRVlnmfYsYk6DE&sensor=true">
+</script>
+<script type='text/javascript' src='https://cdn.firebase.com/js/client/1.0.11/firebase.js'></script>
+
+<script type="text/javascript">
+
+var markers = {};
+
+var placeMarker = function (map, lat, lng, comment) {
+  var contentString = "<div>"+comment+"</div>";
+  var marker = new google.maps.Marker({
+    position: {lat:lat, lng:lng},
+    map: map,
+    animation: google.maps.Animation.DROP
+  });
+  var infoWindow = new google.maps.InfoWindow({
+    content: contentString
+  });
+  google.maps.event.addListener(marker, 'click', function () {
+    infoWindow.open(map, marker)
+  });
+  map.panTo({lat:lat, lng:lng});  
+  return marker;
+};
+
+var initialize = function () {
+  var mapOptions = {
+    center: new google.maps.LatLng(43.189531,-79.840854),
+    zoom: 10
+  };
+  var map = new google.maps.Map(document.getElementById("map-canvas"), mapOptions);
+
+  var fb = new Firebase("https://pioneerpools.firebaseio.com/pools");
+  fb.on('child_added', function (snapshot) {
+    console.log("child_added", snapshot.name(), snapshot.val());
+    var child = snapshot.val();
+    markers[snapshot.name()] = placeMarker(map, child.n, child.w, child.address);
+  });
+  fb.on('child_removed', function (snapshot) {
+    console.log("child_removed", snapshot.name(), snapshot.val());
+    var marker = markers[snapshot.name()];
+    if (marker) {
+      marker.setMap(null);
+      delete markers[snapshot.name()];
+    }
+  });
+
+};
+google.maps.event.addDomListener(window, 'load', initialize);
+</script>
+
+<title>Pioneer Familiy Pools</title>
+</head><body>
+    <div id="map-canvas"/>
+  </body>
+</html>

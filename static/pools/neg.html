@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>negatives</title>
+
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap-theme.min.css">
+<style>
+#map-container, #static-map-container {
+  width: 200px;
+  height: 200px;
+}
+</style>
+</head><body>
+
+<div class="row">
+
+  <div class="col-md-4">
+    <div id="map-container">
+    </div>
+  </div>
+
+  <div class="col-md-2">      
+      <ol>Capture new negative (bg) image.
+        <li>Create a working copy by clicking <button class="pure-button pure-button-primary" id="btnDraw"> =&gt; </button></li>
+        <li>Save as data by clicking <button class="pure-button pure-button-primary" id="btnSave"> Save </button></li>
+      </ol>
+  </div>
+
+  <div class="col-md-4">
+    <canvas id="staticmap-canvas"></canvas>
+  </div>
+
+  <div class="col-md-2" id="img-links">
+  </div>
+
+</div>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/ramda/0.14.0/ramda.min.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBZnCWLhb4CE2oD4TmrpcRVlnmfYsYk6DE&v=3&libraries=geometry"></script>
+
+<script>
+var map;// dynamic v3 not static
+
+var a_from_path = function (path) {
+  return "<a href='"+path+"'>"+path+"</a>";
+};
+
+var loadImageLinks = function () {
+  $.ajax({
+    url: "/negative",
+    cache: false
+  }).done(function( txt ) {
+    
+    var hrefs = R.map(a_from_path, R.split("\n", txt));
+    console.log(hrefs);
+    $( "#img-links" ).html(R.intersperse("<br/>", hrefs));
+
+    console.log("added links to the negative images");
+  });
+
+  return "initiated fetching negative images";
+};
+
+var initialize = function () {
+
+  var mapOptions = {
+    zoom: 18,
+    center: new google.maps.LatLng(43.35975, -79.77),
+    mapTypeId: google.maps.MapTypeId.SATELLITE,
+    disableDefaultUI: true,
+    zoomControl: true,
+    streetViewControl: false
+  };
+  map = new google.maps.Map(document.getElementById('map-container'), mapOptions);
+
+  loadImageLinks();
+  wireUpHandlers();
+
+  return "done";
+};
+
+google.maps.event.addDomListener(window, 'load', function () {
+    console.log(initialize());
+});
+
+var qry = function (lat, lng, width, height, zoom) {
+  var s = "lat="+lat+"&lng="+lng+"&zoom="+zoom+"&width="+width+"&height="+height;
+  return s;
+};
+
+var wireUpHandlers = function () {
+
+  var imageObj = new Image();
+
+  // google maps come in 2 flavors, interactive and static
+  // static is the one we want to send back to the server to be used in Trainig
+  // so we want to mirror interactive in static image
+  google.maps.event.addDomListener(document.getElementById("btnDraw"), 'click', function () {
+
+    var drawImage = function (img, canvas) {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      canvas.getContext("2d").drawImage(img, 0, 0, img.width, img.height);
+
+      return canvas;
+    };
+
+    imageObj.onload = function() {
+      var canvasUnder = document.getElementById("staticmap-canvas");
+      drawImage(this, canvasUnder);
+    };
+
+    var latLng = map.getCenter();
+    var zoom = map.getZoom();
+    imageObj.src = "/staticmap?"+qry(latLng.lat(), latLng.lng(), 200, 200, zoom);
+
+    return "done";
+  });
+
+  google.maps.event.addDomListener(document.getElementById("btnSave"), 'click', function () {
+
+    // send over clean image
+    var canvas = document.createElement("canvas");
+    canvas.width = imageObj.width;
+    canvas.height = imageObj.height;
+    canvas.getContext("2d").drawImage(imageObj, 0, 0, imageObj.width, imageObj.height);
+
+    var imgData = canvas.toDataURL();
+    console.log("payload 2 map images", imgData);
+
+    var request = $.ajax({
+      url: "/negative",
+      method: "POST",
+      data: { imgData : imgData },
+      dataType: "text"
+    });
+    request.done(function( msg ) {
+      alert( msg );
+
+      var hrefs = ["<br/>", a_from_path(msg)];
+      console.log(hrefs);
+      $( "#img-links" ).append(hrefs);
+
+    });
+    request.fail(function( jqXHR, textStatus ) {
+      alert( "Request failed: " + textStatus );
+    });
+
+
+  });
+
+};
+
+</script>
+    
+</body></html>

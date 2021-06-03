@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Add or Remove Pools</title>
+<style>
+.wrapper {
+  touch-action: none;
+}
+</style>
+</head><body>
+
+<div class="wrapper">
+    <!-- expecting 400x400  -->
+    <figure style="position: relative; height:400px; padding: 0px;">
+      <img id="baseImage" src=""
+      alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
+      <canvas id="bottomCanvas" class="bottomLayer" width="400" height="400"
+      style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
+      <canvas id="topCanvas" class="topLayer" width="400" height="400"
+       style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 2;"></canvas>
+    <figcaption style="z-index: 3;">
+      <a href="/static/pools/img/">filename</a>
+    </figcaption>
+    </figure>
+</div>
+<div>
+  <button id="prevBtn" class="buttonStyle">&larr; Prev</button>
+  <input type="text" id="filename">
+  <input type="text" id="note">
+  <button id="nextBtn" class="buttonStyle">Next &rarr;</button>
+</div>
+<script>
+var pages = [];//JSON get fetched and mages are populated on load
+//navigation logic
+var pageIndex = -1;
+var currPage = function  currPage () {
+  return pages[pageIndex];
+};
+var next = function () {
+  pageIndex += 1;
+  return navigate();
+};
+//BUG: going back beyond page=0, going forward skips page=0 to page=1
+var prev = function () {
+  //pageIndex -= 1;
+  //return navigate();
+  return history.back();
+};
+var navigate = function () {
+  var url = '?page=' + pageIndex;
+  history.pushState(pageIndex, null, url);
+  return renderPage(currPage());
+};
+window.onpopstate = function (e) {
+  console.log('restore: ', e.state);
+  if (e.state != null) pageIndex = e.state;
+  return renderPage(currPage());
+};
+// end of navigation logic
+var bottomCanvas = document.getElementById("bottomCanvas");
+var topCanvas = document.getElementById("topCanvas");
+
+// {} -> Bool
+function renderPage (page) {
+  if (!page) {
+    alert('nothing to display')
+    return false;
+  }
+  renderMapImage(page.image_path);
+  renderPoolMarks(page.rects);
+  return true;
+}
+
+function renderMapImage(src) {
+    var img = new Image();
+    img = document.getElementById('baseImage');
+    img.onload = function () {
+      return;
+      //draw the bottom picture
+      var ctx = bottomCanvas.getContext('2d');
+      ctx.canvas.width = this.width;
+      ctx.canvas.height = this.height;
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = src;
+    var filename = src.split('/').pop();
+    document.getElementById('filename').value = filename;
+    return true;
+}
+//[{}] -> Int
+function renderPoolMarks(rects) {
+  var ctx = bottomCanvas.getContext('2d');
+  clear(ctx);
+  rects.forEach(rect => {
+    renderPoolMark(rect, ctx);
+  });
+  document.getElementById('note').value = rects.length + ' pools marked';
+  return rects.length;
+}
+// {} -> Int
+function renderPoolMark(rect, ctx) {
+  if (ctx) {
+    //go with the provided ctx
+  } else {
+    // draw on the top layer erasing any other 
+    ctx = topCanvas.getContext('2d');
+    clear(ctx);
+  }
+  if (!rect) return 0;// just clear the top
+ 	ctx.fillStyle = "rgba(255`,165,0,1)";
+ 	ctx.strokeStyle = "rgba(255,165,0,1)";
+	ctx.font = "bold 16px Arial" ;
+  ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+  return 1;
+}
+
+// ctx -> 
+function clear(ctx) {
+  ctx.clearRect(0,0,ctx.canvas.width, ctx.canvas.height);
+}
+
+//get DATA and get things rolling
+window.onload = function () {
+  console.log("onload");
+
+  var nextBtn = document.getElementById("nextBtn");
+  var prevBtn = document.getElementById("prevBtn");
+  nextBtn.addEventListener('click', next, false);
+  prevBtn.addEventListener('click', prev, false);
+  document.addEventListener('keydown', event => {
+    // if alt is pressed, skip
+    if (event.altKey) return false;
+    if (event.code === 'ArrowRight') return nextBtn.click();
+    if (event.code === 'ArrowLeft') return prevBtn.click();
+  });
+  //Edit rectangles via Pointers
+  var start = {x:0, y:0};
+  var end = {x:0, y:0};
+  function atOrigin(pt) {
+    return pt.x < 1 && pt.y < 1;
+  }
+  function resetPts() {
+    start = {x:0, y:0};
+    end = {x:0, y:0};
+  }
+  topCanvas.onpointerdown = function (e) {
+    console.log('onDown');
+    start = calcXY(e);
+  };
+  topCanvas.onpointermove = function (e) {
+    console.log('onMove');
+    e.preventDefault();
+    if (atOrigin(start)) return 'do nothing';
+    end = calcXY(e);
+    if (start.x < end.x && start.y < end.y) {
+          console.log('adding a new rect');
+          var newRect = {
+            x: start.x,
+            y: start.y,
+            w: end.x - start.x,
+            h: end.y - start.y
+          };
+          renderPoolMark(newRect);
+    }
+  };
+  //be careful;
+  //account for being triggered multiple times
+  function gestureEnd (e) {
+    console.log('onUp');
+    e.preventDefault();
+    //determine if remove rect or add rect
+    console.log('start', start);
+    console.log('end', end);
+    if (atOrigin(start) || atOrigin(end)) {
+      resetPts();
+      return 'no gesture other then click';
+    } else {
+      //if swipe left, then see if there is a rectangle to remove
+      // if swipe down, add a rect
+      if (end.x < start.x) {
+        //swipe left, so maybe remove
+        console.log('possible removal of rect');
+        var rectOfInterest = rectContainingPt(start);
+        if (rectOfInterest) {
+          if (confirm('Remove this box?')) {
+            var index = currPage().rects.indexOf(rectOfInterest);
+            if (-1 < index) currPage().rects.splice(index, 1);
+            renderPoolMarks(currPage().rects);
+            console.log('removed', rectOfInterest);
+          } 
+        }       
+        resetPts();
+        return 'possble removal';
+      } else {
+        if (start.y < end.y) {
+          // add a rect
+          console.log('adding a new rect');
+          var newRect = {
+            x: start.x,
+            y: start.y,
+            w: end.x - start.x,
+            h: end.y - start.y
+          };
+          currPage().rects.push(newRect);
+          renderPoolMark();//clear the top layer
+          renderPoolMarks(currPage().rects);
+          resetPts();
+          return 'added a rect';
+        }
+      }
+    }
+    resetPts();
+    return 'no meaningful action done';
+  };
+
+  //up fires after down but not after movement
+  topCanvas.onpointerup = gestureEnd;
+  //topCanvas.onpointerleave = gestureEnd;
+  //cancel fires after move but not on click
+  topCanvas.onpointercancel = gestureEnd;
+  // Event -> [x,y]
+  function calcXY(e) {
+    //console.log('calc evt', e);
+    var element = topCanvas;
+    var offsetX = 0, offsetY = 0
+
+    if (element.offsetParent) {
+      do {
+        offsetX += element.offsetLeft;
+        offsetY += element.offsetTop;
+      } while ((element = element.offsetParent));
+    }
+
+    var x = e.pageX - offsetX;
+    var y = e.pageY - offsetY;
+    return {x:x, y:y};
+  }
+  // Event -> {x: y: w: h:}
+  function detectRect(e) {
+    var xy = calcXY(e);
+    return rectContainingPt(xy);
+  }
+  // {x: y:} -> {x: y: w: h:}
+  function rectContainingPt(pt) {
+    var x = pt.x;
+    var y = pt.y;
+    var rectOfInterest = false;
+    currPage().rects.forEach(rect => {
+      if (rect.x <= x && x <= rect.x + rect.w &&
+          rect.y <= y && y <= rect.y + rect.h) {
+        rectOfInterest = rect;
+        console.log('Inside Text box', rect);
+
+      } else {
+        console.log('Not inside box');
+      }
+    });
+    return rectOfInterest;
+  }
+
+  //fetching data
+  fetch('/imgdata/')
+  .then(response => response.json())
+  .then(items => {
+    items.forEach(item => {
+      pages.push(item);
+    });
+
+    var urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('page')) {
+      var pageNum = Number(urlParams.get('page'));
+      if (!isNaN(pageNum)) {
+        pageIndex = pageNum;
+        return renderPage(currPage());
+      }
+    } 
+    return nextBtn.click();
+  });//end fetching data and rendering
+};
+</script>
+</body>
+</html>

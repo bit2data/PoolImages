@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html><head>
+
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<title>Pool Classifier</title>
+
+<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.6.0/pure-min.css">
+<style>
+#map-container, #static-map-container {
+  width: 300px;
+  height: 300px;
+}
+</style>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBZnCWLhb4CE2oD4TmrpcRVlnmfYsYk6DE&v=3&libraries=geometry"></script>
+<script src="https://cdn.firebase.com/js/client/1.0.11/firebase.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/ramda/0.10.0/ramda.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+
+</head><body>
+
+<div class="pure-g">
+    <div class="pure-u-1-3"><div id="map-container"></div></div>
+    <div class="pure-u-1-3">
+      <ol>Mark new sites.
+        <li>On the left, all confirmed sites are marked.</li>
+        <li>Run <button class="pure-button pure-button-primary" id="btnClassify"> Classify </button> to mark more sites automatically.</li>
+        <li>Accept all correct markers.</li>
+      </ol>
+      <ol>Create new training data.
+        <li>On the left, all confirmed sites are marked.</li>
+        <li>Remove all mistaken markers if necessary.</li>
+        <li>Mark any new sites if necessary.</li>
+        <li>Create a working copy by clicking <button class="pure-button pure-button-primary" id="btnDraw"> =&gt; </button></li>
+        <li>Save as training data by clicking <button class="pure-button pure-button-primary" id="btnSave"> Save </button></li>
+      </ol>
+    </div>
+    <div class="pure-u-1-3"><canvas id="map-canvas"></canvas></div>
+</div>
+
+<script src="mercata.js"></script>
+
+<script>
+var map;
+var markers = {};
+var fb;
+var imageObj;
+
+// LatLng -> Point
+var fromLatLngToPixelCoordinates = function (latLng) {
+  var numTiles = 1 << map.getZoom();
+  var projection = new MercatorProjection();
+  var worldCoordinate = projection.fromLatLngToPoint(latLng);
+  var pixelCoordinate = new google.maps.Point(
+      Math.floor(worldCoordinate.x * numTiles),
+      Math.floor(worldCoordinate.y * numTiles));
+
+  return pixelCoordinate;
+};
+
+// Point -> LatLng
+var fromPixelCoordinatesToLatLng = function (point) {
+  var numTiles = 1 << map.getZoom();
+  var projection = new MercatorProjection();
+
+  var worldCoordinate = new google.maps.Point(point.x * 1.0 / numTiles, point.y * 1.0 / numTiles);
+  return projection.fromPointToLatLng(worldCoordinate);
+};
+
+// {Rect} -> [Rect]
+// only if the Rect appers inside the map
+var visibleRectangles = function (markers) {
+  var results = [];
+  var proc = function(rect) {
+    var bounds = map.getBounds();
+    var test = bounds.intersects(rect.getBounds());
+
+    if (test) {
+      results.push(rect);
+    } 
+    return test;
+  };
+
+  R.mapObj(proc, markers); 
+  return results;
+};
+
+// Bounds -> {x:int, y:int, w:int, h:int}
+var fromBoundsToXYWH = function (bounds) {
+
+    var sw = bounds.getSouthWest();
+    var ne = bounds.getNorthEast();
+    var nw = new google.maps.LatLng(ne.lat(), sw.lng());
+    var se = new google.maps.LatLng(sw.lat(), ne.lng());
+
+    var pixelCoordinates = {
+      nw: fromLatLngToPixelCoordinates(nw),
+      ne: fromLatLngToPixelCoordinates(ne),
+      sw: fromLatLngToPixelCoordinates(sw),
+      se: fromLatLngToPixelCoordinates(se)
+    };
+
+    return {
+      x: pixelCoordinates.nw.x,
+      y: pixelCoordinates.nw.y,
+      w: pixelCoordinates.ne.x - pixelCoordinates.nw.x, 
+      h: pixelCoordinates.se.y - pixelCoordinates.ne.y
+    };
+};
+
+// {x: y: w: h:} -> Bounds
+var fromXYWHToBounds = function (xywh) {
+  var topUpperLeft = fromBoundsToXYWH(map.getBounds());
+
+  //in world/pixel coordinate
+  var sw = {
+    x: topUpperLeft.x + xywh.x,
+    y: topUpperLeft.y + xywh.y + xywh.h
+  };
+
+  var ne = {
+    x: topUpperLeft.x + xywh.x + xywh.w,
+    y: topUpperLeft.y + xywh.y 
+  };
+
+  return new google.maps.LatLngBounds(fromPixelCoordinatesToLatLng(sw), fromPixelCoordinatesToLatLng(ne));
+};
+
+// [Rect] -> [(x y w h)] where x and y are from Top Left corner aka (0, 0)
+var xys = function (rects) {
+
+  var topUpperLeft = fromBoundsToXYWH(map.getBounds());
+
+  var proc = function (rect) {
+    var xywh = fromBoundsToXYWH(rect.getBounds());
+
+    xywh.x -= topUpperLeft.x;
+    xywh.y -= topUpperLeft.y;
+
+    return xywh;
+  };
+
+  return R.map(proc, rects);
+};
+
+// Point Int -> Bounds
+// rectangle bounds (sw, ne) around (lat, lng)
+var calcBounds = function (center,size) {
+  var n=google.maps.geometry.spherical.computeOffset(center,size.height/2,0).lat(),
+     s=google.maps.geometry.spherical.computeOffset(center,size.height/2,180).lat(),
+     e=google.maps.geometry.spherical.computeOffset(center,size.width/2,90).lng(),
+     w=google.maps.geometry.spherical.computeOffset(center,size.width/2,270).lng();
+
+     return new google.maps.LatLngBounds(new google.maps.LatLng(s,w),
+                                          new google.maps.LatLng(n,e));
+};
+
+// Map {s: w: n: e:} ID FirebaseRef Color -> Rectangle
+// draw rect indicating pool location
+// delete and resize propagate to DB
+var placeRect = function (map, swne, fid, fb, color) {
+  var rectangle = new google.maps.Rectangle({
+    strokeColor: color,
+    strokeOpacity: 0.8,
+    strokeWeight: 1,
+    fillColor: '#FFFFFF',
+    fillOpacity: 0.0,
+    map: map,
+    editable: true,
+    bounds: new google.maps.LatLngBounds(new google.maps.LatLng(swne.s,swne.w),
+                                              new google.maps.LatLng(swne.n,swne.e))
+  });
+
+  google.maps.event.addListener(rectangle, 'click', function () {
+    if (window.confirm("Sure to Delete?")) { 
+      fb.child(fid).remove();
+    }
+  });
+
+  google.maps.event.addListener(rectangle, 'bounds_changed', function () {
+    console.log("bounds changes "+rectangle.getBounds());
+    var bounds = rectangle.getBounds();
+    fb.child(fid).update({
+      s: bounds.getSouthWest().lat(), 
+      w: bounds.getSouthWest().lng(), 
+      n: bounds.getNorthEast().lat(), 
+      e: bounds.getNorthEast().lng()
+    });
+  });
+
+  return rectangle;
+};
+
+
+// Map Bounds FirebaseRef Color -> Rectangle
+// represent the classified region with a Box, with different color
+var placeTempRect = function (map, bounds, fb, color) {
+
+  var rectangle = new google.maps.Rectangle({
+    strokeColor: color,
+    strokeOpacity: 0.8,
+    strokeWeight: 1,
+    fillColor: '#FFFFFF',
+    fillOpacity: 0.0,
+    map: map,
+    bounds: bounds
+  });
+
+  // convert to legit/perm/green box
+  google.maps.event.addListener(rectangle, 'click', function () {
+    if (window.confirm("Sure to accept?")) { 
+          console.log(rectangle);
+
+          var bounds = rectangle.getBounds();
+          var geocoder = new google.maps.Geocoder();
+
+          geocoder.geocode({'latLng': bounds.getSouthWest()}, function(results, status) {
+            if (status == google.maps.GeocoderStatus.OK) {
+              if (results[0]) {
+                console.log(results);
+                fb.push({ 
+                  s: bounds.getSouthWest().lat(), 
+                  w: bounds.getSouthWest().lng(), 
+                  n: bounds.getNorthEast().lat(), 
+                  e: bounds.getNorthEast().lng(), 
+                  address: results[0].formatted_address}); 
+              } else {
+                alert('No results found');
+              }
+            } else {
+              alert('Geocoder failed due to: ' + status);
+            }
+          });//end of address look up
+    }
+  });
+
+  return rectangle;
+};
+
+// FirebaseRef -> "done"
+var initialize = function (fb) {
+  var mapOptions = {
+    zoom: 19,
+    center: new google.maps.LatLng(43.35975, -79.77),
+    mapTypeId: google.maps.MapTypeId.SATELLITE,
+    disableDefaultUI: true,
+    zoomControl: true,
+    streetViewControl: false
+  };
+  map = new google.maps.Map(document.getElementById('map-container'),
+    mapOptions);
+
+  google.maps.event.addListener(map, 'click', function(e) {
+    var lat = e.latLng.lat();
+    var lng =  e.latLng.lng();
+    var bounds = calcBounds(new google.maps.LatLng(lat, lng), new google.maps.Size(7,7));
+    var geocoder = new google.maps.Geocoder();
+
+    geocoder.geocode({'latLng': e.latLng}, function(results, status) {
+      if (status == google.maps.GeocoderStatus.OK) {
+        if (results[0]) {
+          console.log(results);
+          fb.push({ 
+            s: bounds.getSouthWest().lat(), 
+            w: bounds.getSouthWest().lng(), 
+            n: bounds.getNorthEast().lat(), 
+            e: bounds.getNorthEast().lng(), 
+            address: results[0].formatted_address}); 
+        } else {
+          alert('No results found');
+        }
+      } else {
+        alert('Geocoder failed due to: ' + status);
+      }
+    });//end of address
+  });
+
+  fb.on('child_added', function (snapshot) {
+    console.log("child_added", snapshot.name(), snapshot.val());
+    var child = snapshot.val();
+    markers[snapshot.name()] = placeRect(map, {
+      s: child.s,
+      w: child.w,
+      n: child.n,
+      e: child.e
+    }, snapshot.name(), fb, '#00FF00');
+  });
+  fb.on('child_removed', function (snapshot) {
+    console.log("child_removed", snapshot.name(), snapshot.val());
+    var marker = markers[snapshot.name()];
+    if (marker) {
+      marker.setMap(null);
+      delete markers[snapshot.name()];
+    }
+  });
+
+  return "done";
+};
+
+google.maps.event.addDomListener(window, 'load', function () {
+  $.get( "/fbtoken", function( data ) {
+    console.log("got fb token", data );
+
+    fb = new Firebase("https://pioneerpools.firebaseio.com/pools");
+    if (data === "") {
+      alert("no token from server, read only, no write for you!");
+    } else {
+      fb.auth(data, function (error, authData) {
+        if (error) {
+          alert("no auth from fb, read only, no write for you!")
+        } else {
+          console.log(authData);
+        }
+      })
+    }
+    console.log(initialize(fb));
+  });
+});
+
+
+var qry = function (lat, lng, width, height, zoom) {
+  var s = "lat="+lat+"&lng="+lng+"&zoom="+zoom+"&width="+width+"&height="+height;
+  return s;
+};
+
+// google maps come in 2 flavors, interactive and static
+// static is the one we want to send back to the server to be used in Trainig
+// so we want to mirror interactive in static image
+google.maps.event.addDomListener(document.getElementById("btnDraw"), 'click', function () {
+
+  var drawImage = function (img, canvas) {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    canvas.getContext("2d").drawImage(img, 0, 0, img.width, img.height);
+
+    return canvas;
+  };
+
+  var drawRects = function (xywhs, canvas) {
+    var ctx = canvas.getContext("2d");
+
+    R.forEach(function (xywh) {
+      ctx.strokeRect(xywh.x, xywh.y, xywh.w, xywh.h);
+    }, xywhs);
+
+    return "done";
+  };
+
+  imageObj = new Image();
+
+  imageObj.onload = function() {
+    var canvasUnder = document.getElementById("map-canvas");
+    drawImage(this, canvasUnder);
+    drawRects(xys(visibleRectangles(markers)), canvasUnder);
+  };
+
+  var latLng = map.getCenter();
+  var zoom = map.getZoom();
+  imageObj.src = "/staticmap?"+qry(latLng.lat(), latLng.lng(), 300, 300, zoom);
+
+  return "done";
+});
+
+google.maps.event.addDomListener(document.getElementById("btnClassify"), 'click', function () {
+
+  var latLng = map.getCenter();
+  var zoom = map.getZoom();
+
+  // send similar data as in staticmapUrl
+  // server should send back [{x: y: w: h:}]
+  // draw recommendation using those...
+  $.getJSON( "/classify?"+qry(latLng.lat(), latLng.lng(), 300, 300, zoom), function( data ) {
+
+    $.map( data, function( xywh ) {
+      var bounds = fromXYWHToBounds(xywh);
+
+      return placeTempRect (map, bounds, fb, "#FF0000"); 
+    });
+
+    console.log("Classify with ", data);
+  });
+
+});
+
+google.maps.event.addDomListener(document.getElementById("btnSave"), 'click', function () {
+  var xywhs = xys(visibleRectangles(markers));
+  console.log("payload 1 is xywhz", xywhs);
+
+  // send over clean image
+  var canvas = document.createElement("canvas");
+  canvas.width = imageObj.width;
+  canvas.height = imageObj.height;
+  canvas.getContext("2d").drawImage(imageObj, 0, 0, imageObj.width, imageObj.height);
+
+  var imgData = canvas.toDataURL();
+  console.log("payload 2 map images", imgData);
+
+  var fbMaps = new Firebase("https://pioneerpools.firebaseio.com/maps");
+  fbMaps.push({
+    xywhs: xywhs,
+    imgBase64: imgData
+  });
+
+});
+
+</script>
+    
+</body></html>
