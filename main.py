@@ -11,14 +11,19 @@ def home():
 @app.route('/imgdata/')
 def imgdata():
   data = []
-  for pth in glob.glob(os.path.join(app.root_path, "static/pools/images/*.json")):
-    filename = pth.split('/')[-1] # -> 123.json
-    name = filename.split('.')[0] # -> 123
-    with app.open_resource('static/pools/images/{}'.format(filename)) as fin:
-      obj = json.load(fin)
-      obj['image_path'] = '/static/pools/images/{}.jpg'.format(name)
-      obj['json_path'] = '/static/pools/images/{}.json'.format(name)
-      data.append(obj)
+  srcs = ['test', 'train']
+  for src in srcs:
+    basedir = 'static/pools/images/{}'.format(src)
+    print(basedir)
+    for pth in glob.glob(os.path.join(app.root_path, basedir+'/*.json')):
+      print(pth)
+      filename = pth.split('/')[-1] # -> 123.json
+      name = filename.split('.')[0] # -> 123
+      with app.open_resource(pth) as fin:
+        obj = json.load(fin)
+        obj['image_path'] = '/static/pools/images/{}/{}.jpg'.format(src, name)
+        obj['json_path'] = '/static/pools/images/{}/{}.json'.format(src, name)
+        data.append(obj)
   return json.dumps(data)
 
 # {} Path -> IO
