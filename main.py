@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for
+from flask import Flask, render_template, redirect, url_for, request
 import os, json, glob
 from collections import deque
 
@@ -25,6 +25,15 @@ def imgdata():
         obj['json_path'] = '/static/pools/images/{}/{}.json'.format(src, name)
         data.append(obj)
   return json.dumps(data)
+
+  @app.route('/prediction/')
+  def prediction():
+    img_path = request.args.get('img_path')
+    print(img_path)
+    json_path = img_path.replace('images', 'predictions').replace('jpg', 'json')
+    with app.oper_resource(json_path) as fin:
+      pred = json.load(fin)
+    return json.dumps(pred)
 
 # {} Path -> IO
 def record_as_json(obj, relpath):

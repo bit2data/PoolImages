@@ -75,11 +75,6 @@ window.onpopstate = function (e) {
 };
 // end of navigation logic
 
-
-//why are these here?
-var bottomCanvas = document.getElementById("bottomCanvas");
-var topCanvas = document.getElementById("topCanvas");
-
 // {} -> Bool
 function renderPage (page) {
   if (!page) {
@@ -93,14 +88,42 @@ function renderPage (page) {
 }
 
 function renderMapImage(src) {
-  var img;
+  var img, imgR;
   img = document.getElementById('baseImage');
   img.src = src;
   img.onload = function () {
     console.log('width', img.width);
     console.log('height', img.height);
-  }
-  document.getElementById('baseImageR').src = src;
+  };
+  imgR = document.getElementById('baseImageR')
+  imgR.src = src;
+  imgR.onload = function () {
+    //load predictions and mark em
+    pred_json_path = src.replace('images', 'predictions').replace('jpg', 'json');
+    fetch(pred_json_path)
+    .then(response => response.json())
+    .then(pred => {
+      console.log(pred);
+      var ctx = document.getElementById('bottomCanvasR').getContext('2d');
+      pred.boxes.forEach((box, i) => {
+        console.log(box, i);
+        var score = pred.scores[i];
+        console.log('score', score);
+        if (score < 0.9) {
+          return console.log('skip low score', score);
+        }
+        var x, y, w, h;
+        x = box[0];
+        y = box[1];
+        w = box[2] - x;
+        h = box[3] - y;
+ 	      ctx.fillStyle = "rgba(255`,165,0,1)";
+     	  ctx.strokeStyle = "rgba(255,165,0,1)";
+    	  ctx.font = "bold 16px Arial" ;
+        ctx.strokeRect(x, y, w, h);
+      });
+    });
+  };
 
   var filename = src.split('/').pop();
   document.getElementById('filename').value = filename;
@@ -123,6 +146,7 @@ function renderPoolMark(rect, ctx) {
     //go with the provided ctx
   } else {
     // draw on the top layer erasing any other 
+    var topCanvas = document.getElementById("topCanvas");
     ctx = topCanvas.getContext('2d');
     clear(ctx);
   }
@@ -163,6 +187,8 @@ window.onload = function () {
     start = {x:0, y:0};
     end = {x:0, y:0};
   }
+
+  var topCanvas = document.getElementById('topCanvas');
   topCanvas.onpointerdown = function (e) {
     console.log('onDown');
     start = calcXY(e);
@@ -205,7 +231,8 @@ window.onload = function () {
           if (confirm('Remove this box?')) {
             var index = currPage().rects.indexOf(rectOfInterest);
             if (-1 < index) currPage().rects.splice(index, 1);
-            renderPoolMarks(currPage().rects);
+            var ctx = document.getElementById("bottomCanvas").getContext('2d');
+            renderPoolMarks(page.rects, ctx);
             console.log('removed', rectOfInterest);
           } 
         }       
@@ -223,7 +250,8 @@ window.onload = function () {
           };
           currPage().rects.push(newRect);
           renderPoolMark();//clear the top layer
-          renderPoolMarks(currPage().rects);
+          var ctx = document.getElementById("bottomCanvas").getContext('2d');
+          renderPoolMarks(page.rects, ctx);
           resetPts();
           return 'added a rect';
         }
