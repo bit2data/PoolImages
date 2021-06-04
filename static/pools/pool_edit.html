@@ -10,22 +10,35 @@
 .wrapper {
   touch-action: none;
 }
+.imgContainer {
+  display: inline-block;
+  position: relative;
+  width: 300px;
+  height: 300px;
+  padding: 0px;
+}
 </style>
 </head><body>
 
 <div class="wrapper">
-    <!-- expecting 400x400  -->
-    <figure style="position: relative; height:400px; padding: 0px;">
-      <img id="baseImage" src=""
+     <!-- expecting 300x300  -->
+    <div class="imgContainer">
+      <img id="baseImage" 
       alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
-      <canvas id="bottomCanvas" class="bottomLayer" width="400" height="400"
+      <canvas id="bottomCanvas" class="bottomLayer" width="300" height="300"
       style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
-      <canvas id="topCanvas" class="topLayer" width="400" height="400"
+      <canvas id="topCanvas" class="topLayer" width="300" height="300"
        style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 2;"></canvas>
-    <figcaption style="z-index: 3;">
-      <a href="/static/pools/img/">filename</a>
-    </figcaption>
-    </figure>
+    </div>   
+    <!-- expecting 300x300  -->
+    <div class="imgContainer">
+      <img id="baseImageR" 
+      alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
+      <canvas id="bottomCanvasR" class="bottomLayer" width="300" height="300"
+      style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
+      <canvas id="topCanvasR" class="topLayer" width="300" height="300"
+       style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 2;"></canvas>
+    </div>
 </div>
 <div>
   <button id="prevBtn" class="buttonStyle">&larr; Prev</button>
@@ -61,6 +74,9 @@ window.onpopstate = function (e) {
   return renderPage(currPage());
 };
 // end of navigation logic
+
+
+//why are these here?
 var bottomCanvas = document.getElementById("bottomCanvas");
 var topCanvas = document.getElementById("topCanvas");
 
@@ -71,29 +87,29 @@ function renderPage (page) {
     return false;
   }
   renderMapImage(page.image_path);
-  renderPoolMarks(page.rects);
+  var ctx = document.getElementById("bottomCanvas").getContext('2d');
+  renderPoolMarks(page.rects, ctx);
   return true;
 }
 
 function renderMapImage(src) {
-    var img = new Image();
-    img = document.getElementById('baseImage');
-    img.onload = function () {
-      return;
-      //draw the bottom picture
-      var ctx = bottomCanvas.getContext('2d');
-      ctx.canvas.width = this.width;
-      ctx.canvas.height = this.height;
-      ctx.drawImage(img, 0, 0);
-    };
-    img.src = src;
-    var filename = src.split('/').pop();
-    document.getElementById('filename').value = filename;
-    return true;
+  var img;
+  img = document.getElementById('baseImage');
+  img.src = src;
+  img.onload = function () {
+    console.log('width', img.width);
+    console.log('height', img.height);
+  }
+  document.getElementById('baseImageR').src = src;
+
+  var filename = src.split('/').pop();
+  document.getElementById('filename').value = filename;
+
+  return true;
 }
 //[{}] -> Int
-function renderPoolMarks(rects) {
-  var ctx = bottomCanvas.getContext('2d');
+function renderPoolMarks(rects, ctx) {
+  //var ctx = bottomCanvas.getContext('2d');
   clear(ctx);
   rects.forEach(rect => {
     renderPoolMark(rect, ctx);
