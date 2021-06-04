@@ -13,30 +13,29 @@
 .imgContainer {
   display: inline-block;
   position: relative;
-  width: 300px;
-  height: 300px;
+  width: 400px;
+  height: 400px;
   padding: 0px;
 }
 </style>
 </head><body>
-
+<p>Label vs Predictions</p>
 <div class="wrapper">
-     <!-- expecting 300x300  -->
     <div class="imgContainer">
       <img id="baseImage" 
       alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
-      <canvas id="bottomCanvas" class="bottomLayer" width="300" height="300"
+      <canvas id="bottomCanvas" class="bottomLayer" width="400" height="400"
       style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
-      <canvas id="topCanvas" class="topLayer" width="300" height="300"
+      <canvas id="topCanvas" class="topLayer" width="400" height="400"
        style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 2;"></canvas>
     </div>   
     <!-- expecting 300x300  -->
     <div class="imgContainer">
       <img id="baseImageR" 
       alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
-      <canvas id="bottomCanvasR" class="bottomLayer" width="300" height="300"
+      <canvas id="bottomCanvasR" class="bottomLayer" width="400" height="400"
       style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
-      <canvas id="topCanvasR" class="topLayer" width="300" height="300"
+      <canvas id="topCanvasR" class="topLayer" width="400" height="400"
        style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 2;"></canvas>
     </div>
 </div>
@@ -105,11 +104,14 @@ function renderMapImage(src) {
     .then(pred => {
       console.log(pred);
       var ctx = document.getElementById('bottomCanvasR').getContext('2d');
+      clear(ctx);
       pred.boxes.forEach((box, i) => {
         console.log(box, i);
         var score = pred.scores[i];
         console.log('score', score);
-        if (score < 0.9) {
+        var rgba = "rgba(255,0,0,"+(score * score)+")";
+        if (score < 0.5) {
+          console.log('rgba', rgba);
           return console.log('skip low score', score);
         }
         var x, y, w, h;
@@ -117,8 +119,8 @@ function renderMapImage(src) {
         y = box[1];
         w = box[2] - x;
         h = box[3] - y;
- 	      ctx.fillStyle = "rgba(255`,165,0,1)";
-     	  ctx.strokeStyle = "rgba(255,165,0,1)";
+ 	      ctx.fillStyle = rgba;
+     	  ctx.strokeStyle = rgba;
     	  ctx.font = "bold 16px Arial" ;
         ctx.strokeRect(x, y, w, h);
       });
