@@ -29,55 +29,33 @@
       <canvas id="topCanvas" class="topLayer" width="400" height="400"
        style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 2;"></canvas>
     </div>   
+    <!-- expecting 300x300  -->
+    <div class="imgContainer">
+      <img id="baseImageR" 
+      alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
+      <canvas id="bottomCanvasR" class="bottomLayer" width="400" height="400"
+      style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
+      <canvas id="topCanvasR" class="topLayer" width="400" height="400"
+       style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 2;"></canvas>
+    </div>
 </div>
 <div>
   <button id="prevBtn" class="buttonStyle">&larr; Prev</button>
   <input type="text" id="filename">
   <input type="text" id="note">
-  <button id="scaleBtn" class="buttonStyle" onclick=e()>Rescale</button>
   <button id="nextBtn" class="buttonStyle">Next &rarr;</button>
 </div>
 <script>
-//temporay fix
-
-function scale() {
-  console.log('work to to');
-  var page = currPage();
-  var rects = page.rects;
-  //console.log(rects);
-  rects.forEach(rect => {
-    for (let k in rect) {
-      let v = Math.trunc(rect[k] * 4 / 3);
-      console.log(k,':',rect[k], 'to', v);
-      rect[k] = v;
-    }
-  });
-  renderPage(page);
-  save(page);
-}
-
-function save(data) {
-  fetch("/save/", {
-    method: "POST", 
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(data)
-  }).then(res => {
-    console.log("Request complete! response:", res);
-  });
-}
-
 var pages = [];//JSON get fetched and mages are populated on load
 //navigation logic
 var pageIndex = -1;
-function  currPage() {
+var currPage = function  currPage () {
   return pages[pageIndex];
-}
-function next() {
+};
+var next = function () {
   pageIndex += 1;
   return navigate();
-}
+};
 //BUG: going back beyond page=0, going forward skips page=0 to page=1
 var prev = function () {
   //pageIndex -= 1;
@@ -115,6 +93,38 @@ function renderMapImage(src) {
   img.onload = function () {
     console.log('width', img.width);
     console.log('height', img.height);
+  };
+  imgR = document.getElementById('baseImageR')
+  imgR.src = src;
+  imgR.onload = function () {
+    //load predictions and mark em
+    pred_json_path = src.replace('images', 'predictions').replace('jpg', 'json');
+    fetch(pred_json_path)
+    .then(response => response.json())
+    .then(pred => {
+      console.log(pred);
+      var ctx = document.getElementById('bottomCanvasR').getContext('2d');
+      clear(ctx);
+      pred.boxes.forEach((box, i) => {
+        console.log(box, i);
+        var score = pred.scores[i];
+        console.log('score', score);
+        var rgba = "rgba(255,0,0,"+(score * score)+")";
+        if (score < 0.5) {
+          console.log('rgba', rgba);
+          return console.log('skip low score', score);
+        }
+        var x, y, w, h;
+        x = box[0];
+        y = box[1];
+        w = box[2] - x;
+        h = box[3] - y;
+ 	      ctx.fillStyle = rgba;
+     	  ctx.strokeStyle = rgba;
+    	  ctx.font = "bold 16px Arial" ;
+        ctx.strokeRect(x, y, w, h);
+      });
+    });
   };
 
   var filename = src.split('/').pop();

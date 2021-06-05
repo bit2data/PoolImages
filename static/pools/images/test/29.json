@@ -1,1 +1,1 @@
-{"rect_count": 3, "rects": [{"x": 84, "y": 88, "w": 17, "h": 17}, {"x": 21, "y": 145, "w": 17, "h": 17}, {"x": 177, "y": 243, "w": 17, "h": 17}], "w": 300, "h": 300}
+{"rect_count": 3, "rects": [{"x": 112, "y": 117, "w": 22, "h": 22}, {"x": 28, "y": 193, "w": 22, "h": 22}, {"x": 236, "y": 324, "w": 22, "h": 22}], "w": 300, "h": 300, "image_path": "/static/pools/images/test/29.jpg", "json_path": "/static/pools/images/test/29.json"}

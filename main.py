@@ -31,14 +31,26 @@ def imgdata():
     img_path = request.args.get('img_path')
     print(img_path)
     json_path = img_path.replace('images', 'predictions').replace('jpg', 'json')
-    with app.oper_resource(json_path) as fin:
+    with app.open_resource(json_path) as fin:
       pred = json.load(fin)
     return json.dumps(pred)
 
-# {} Path -> IO
+@app.route('/save/', methods = ['POST'])
+def save_page():
+  content = request.json
+  print(content)
+  print(content['json_path'])
+  where = record_as_json(content, '.'+content['json_path'])
+  with app.open_resource(where) as fin:
+    page = json.load(fin)
+  return json.dumps(page)
+
+# {} Path -> IO -> Path
 def record_as_json(obj, relpath):
-   with open(os.path.join(app.root_path, relpath), 'w') as fout:
-    return json.dump(obj, fout)
+  where = os.path.join(app.root_path, relpath)
+  with open(where, 'w') as fout:
+    json.dump(obj, fout)
+  return where
 
 @app.route('/edit/')
 def edit():
