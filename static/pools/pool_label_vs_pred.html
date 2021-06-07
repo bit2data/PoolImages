@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html><head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <title>Prediction</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+<title>Prediction</title>
+
 <style>
 .wrapper {
   touch-action: none;
 }
+
 .imgContainer {
   display: inline-block;
   position: relative;
@@ -19,7 +22,8 @@
 }
 </style>
 </head><body>
-<p>Label Used in Training vs Predictions</p>
+
+<p>Human vs Predictions</p>
 <div class="wrapper">
     <div class="imgContainer">
       <img id="baseImage" 
@@ -27,7 +31,6 @@
       <canvas id="bottomCanvas" class="bottomLayer" width="400" height="400"
       style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
     </div>   
-    <!-- expecting 300x300  -->
     <div class="imgContainer">
       <img id="baseImageR" 
       alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
@@ -38,6 +41,7 @@
 <div>
   <button id="prevBtn" class="buttonStyle">&larr; Prev</button>
   <input type="text" id="filename">
+  <button onclick=openEditor()>Edit</button>
   <input type="text" id="note">
   <button id="nextBtn" class="buttonStyle">Next &rarr;</button>
 </div>
@@ -45,29 +49,44 @@
 var pages = [];//JSON get fetched and mages are populated on load
 //navigation logic
 var pageIndex = -1;
-var currPage = function  currPage () {
+
+function currPage() {
   return pages[pageIndex];
-};
-var next = function () {
+}
+
+function next() {
   pageIndex += 1;
   return navigate();
-};
+}
+
 //BUG: going back beyond page=0, going forward skips page=0 to page=1
-var prev = function () {
+function prev() {
   //pageIndex -= 1;
   //return navigate();
   return history.back();
-};
-var navigate = function () {
+}
+
+function navigate() {
   var url = '?page=' + pageIndex;
   history.pushState(pageIndex, null, url);
   return renderPage(currPage());
-};
+}
+
 window.onpopstate = function (e) {
   console.log('restore: ', e.state);
   if (e.state != null) pageIndex = e.state;
   return renderPage(currPage());
 };
+
+function openEditor() {
+  console.log('navigate to pool_edit.html?page='+pageIndex);
+  console.log(location.pathname);
+  console.log(location.search);
+  var url = location.href.toString();
+  url = url.replace('pool_label_vs_pred', 'pool_edit');
+  console.log(url);
+  location.replace(url);
+}
 // end of navigation logic
 
 // {} -> Bool
@@ -82,6 +101,7 @@ function renderPage (page) {
   return true;
 }
 
+// URL -> Bool
 function renderMapImage(src) {
   var img, imgR;
   img = document.getElementById('baseImage');
@@ -128,7 +148,8 @@ function renderMapImage(src) {
 
   return true;
 }
-//[{}] -> Int
+
+//[{}] ctx -> Int
 function renderPoolMarks(rects, ctx) {
   //var ctx = bottomCanvas.getContext('2d');
   clear(ctx);
@@ -138,7 +159,8 @@ function renderPoolMarks(rects, ctx) {
   document.getElementById('note').value = rects.length + ' pools marked';
   return rects.length;
 }
-// {} -> Int
+
+// {} ctx -> Int
 function renderPoolMark(rect, ctx) {
   if (!rect) return 0;// just clear the top
  	ctx.fillStyle = "rgba(255`,165,0,1)";
@@ -148,9 +170,10 @@ function renderPoolMark(rect, ctx) {
   return 1;
 }
 
-// ctx -> 
+// ctx -> True 
 function clear(ctx) {
   ctx.clearRect(0,0,ctx.canvas.width, ctx.canvas.height);
+  return true;
 }
 
 //get DATA and get things rolling
@@ -172,9 +195,7 @@ window.onload = function () {
   fetch('/imgdata/')
   .then(response => response.json())
   .then(items => {
-    items.forEach(item => {
-      pages.push(item);
-    });
+    pages = items;
 
     var urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('page')) {
@@ -186,7 +207,7 @@ window.onload = function () {
     } 
     return nextBtn.click();
   });//end fetching data and rendering
-};
+};//onload
 </script>
 </body>
 </html>

@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html><head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <title>Add or Remove Pools</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+<title>Add or Remove Pools - v3</title>
+
 <style>
 .wrapper {
   touch-action: none;
 }
+
 .imgContainer {
   display: inline-block;
   position: relative;
@@ -19,6 +22,7 @@
 }
 </style>
 </head><body>
+
 <p>Label vs Predictions</p>
 <div class="wrapper">
     <div class="imgContainer">
@@ -34,61 +38,53 @@
   <button id="prevBtn" class="buttonStyle">&larr; Prev</button>
   <input type="text" id="filename">
   <input type="text" id="note">
-  <button id="scaleBtn" class="buttonStyle" onclick=e()>Rescale</button>
+  <button id="scaleBtn" class="buttonStyle" onclick=save()>Save Changes</button>
   <button id="nextBtn" class="buttonStyle">Next &rarr;</button>
 </div>
+
 <script>
-//temporay fix
 
-function scale() {
-  console.log('work to to');
-  var page = currPage();
-  var rects = page.rects;
-  //console.log(rects);
-  rects.forEach(rect => {
-    for (let k in rect) {
-      let v = Math.trunc(rect[k] * 4 / 3);
-      console.log(k,':',rect[k], 'to', v);
-      rect[k] = v;
-    }
-  });
-  renderPage(page);
-  save(page);
-}
-
-function save(data) {
+//changeme: auto save upon add/remove a rect
+function save() {
   fetch("/save/", {
     method: "POST", 
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(data)
+    body: JSON.stringify(currPage())
   }).then(res => {
     console.log("Request complete! response:", res);
+    alert(res);
   });
 }
 
-var pages = [];//JSON get fetched and mages are populated on load
-//navigation logic
+//navigation
+var pages = [];//JSON get fetched and 'pages' are populated on load; page contains rects; each rect marks a pool on the image
+
 var pageIndex = -1;
+
 function  currPage() {
   return pages[pageIndex];
 }
+
 function next() {
   pageIndex += 1;
   return navigate();
 }
+
 //BUG: going back beyond page=0, going forward skips page=0 to page=1
-var prev = function () {
+function prev() {
   //pageIndex -= 1;
   //return navigate();
   return history.back();
-};
-var navigate = function () {
+}
+
+function navigate() {
   var url = '?page=' + pageIndex;
   history.pushState(pageIndex, null, url);
   return renderPage(currPage());
-};
+}
+
 window.onpopstate = function (e) {
   console.log('restore: ', e.state);
   if (e.state != null) pageIndex = e.state;
@@ -108,8 +104,9 @@ function renderPage (page) {
   return true;
 }
 
+//URL -> Bool
 function renderMapImage(src) {
-  var img, imgR;
+  var img;
   img = document.getElementById('baseImage');
   img.src = src;
   img.onload = function () {
@@ -122,7 +119,8 @@ function renderMapImage(src) {
 
   return true;
 }
-//[{}] -> Int
+
+//[{}] ctx -> Int
 function renderPoolMarks(rects, ctx) {
   //var ctx = bottomCanvas.getContext('2d');
   clear(ctx);
@@ -132,7 +130,8 @@ function renderPoolMarks(rects, ctx) {
   document.getElementById('note').value = rects.length + ' pools marked';
   return rects.length;
 }
-// {} -> Int
+
+// {} ctx -> Int
 function renderPoolMark(rect, ctx) {
   if (ctx) {
     //go with the provided ctx
@@ -150,9 +149,10 @@ function renderPoolMark(rect, ctx) {
   return 1;
 }
 
-// ctx -> 
+// ctx -> Bool
 function clear(ctx) {
   ctx.clearRect(0,0,ctx.canvas.width, ctx.canvas.height);
+  return true;
 }
 
 //get DATA and get things rolling
@@ -163,28 +163,34 @@ window.onload = function () {
   var prevBtn = document.getElementById("prevBtn");
   nextBtn.addEventListener('click', next, false);
   prevBtn.addEventListener('click', prev, false);
+
   document.addEventListener('keydown', event => {
     // if alt is pressed, skip
     if (event.altKey) return false;
     if (event.code === 'ArrowRight') return nextBtn.click();
     if (event.code === 'ArrowLeft') return prevBtn.click();
   });
+
   //Edit rectangles via Pointers
   var start = {x:0, y:0};
   var end = {x:0, y:0};
+  
   function atOrigin(pt) {
     return pt.x < 1 && pt.y < 1;
   }
+  
   function resetPts() {
     start = {x:0, y:0};
     end = {x:0, y:0};
   }
 
   var topCanvas = document.getElementById('topCanvas');
+  
   topCanvas.onpointerdown = function (e) {
     console.log('onDown');
     start = calcXY(e);
   };
+  
   topCanvas.onpointermove = function (e) {
     console.log('onMove');
     e.preventDefault();
@@ -201,6 +207,7 @@ window.onload = function () {
           renderPoolMark(newRect);
     }
   };
+  
   //be careful;
   //account for being triggered multiple times
   function gestureEnd (e) {
@@ -212,53 +219,59 @@ window.onload = function () {
     if (atOrigin(start) || atOrigin(end)) {
       resetPts();
       return 'no gesture other then click';
-    } else {
-      //if swipe left, then see if there is a rectangle to remove
-      // if swipe down, add a rect
-      if (end.x < start.x) {
-        //swipe left, so maybe remove
-        console.log('possible removal of rect');
-        var rectOfInterest = rectContainingPt(start);
-        if (rectOfInterest) {
-          if (confirm('Remove this box?')) {
-            var index = currPage().rects.indexOf(rectOfInterest);
-            if (-1 < index) currPage().rects.splice(index, 1);
-            var ctx = document.getElementById("bottomCanvas").getContext('2d');
-            renderPoolMarks(page.rects, ctx);
-            console.log('removed', rectOfInterest);
-          } 
-        }       
-        resetPts();
-        return 'possble removal';
-      } else {
-        if (start.y < end.y) {
-          // add a rect
-          console.log('adding a new rect');
-          var newRect = {
-            x: start.x,
-            y: start.y,
-            w: end.x - start.x,
-            h: end.y - start.y
-          };
-          currPage().rects.push(newRect);
-          renderPoolMark();//clear the top layer
+    } 
+
+    //if swipe left, then see if there is a rectangle to remove
+    // if swipe down, add a rect
+    if (end.x < start.x) {
+      //swipe left, so maybe remove
+      console.log('possible removal of rect');
+      var rectOfInterest = rectContainingPt(start);
+      if (rectOfInterest) {
+        if (confirm('Remove this box?')) {
+          var index = currPage().rects.indexOf(rectOfInterest);
+          if (-1 < index) currPage().rects.splice(index, 1);
           var ctx = document.getElementById("bottomCanvas").getContext('2d');
-          renderPoolMarks(page.rects, ctx);
-          resetPts();
-          return 'added a rect';
-        }
-      }
+          renderPoolMarks(currPage().rects, ctx);
+          console.log('removed', rectOfInterest);
+        } 
+      }       
+      resetPts();
+      return 'possble removal';
     }
+
+    //User signals adding a rect
+    if (start.y < end.y) {
+        console.log('adding a new rect');
+        var newRect = {
+          x: start.x,
+          y: start.y,
+          w: end.x - start.x,
+          h: end.y - start.y
+        };
+
+        currPage().rects.push(newRect);
+        renderPoolMark();//clear the top layer
+
+        var ctx = document.getElementById("bottomCanvas").getContext('2d');
+        renderPoolMarks(currPage().rects, ctx);
+        resetPts();
+        return 'added a rect';
+    }
+    
     resetPts();
     return 'no meaningful action done';
   };
 
   //up fires after down but not after movement
   topCanvas.onpointerup = gestureEnd;
+
   //topCanvas.onpointerleave = gestureEnd;
+
   //cancel fires after move but not on click
   topCanvas.onpointercancel = gestureEnd;
-  // Event -> [x,y]
+
+  // Event -> {x: y:}
   function calcXY(e) {
     //console.log('calc evt', e);
     var element = topCanvas;
@@ -275,11 +288,13 @@ window.onload = function () {
     var y = e.pageY - offsetY;
     return {x:x, y:y};
   }
+
   // Event -> {x: y: w: h:}
   function detectRect(e) {
     var xy = calcXY(e);
     return rectContainingPt(xy);
   }
+
   // {x: y:} -> {x: y: w: h:}
   function rectContainingPt(pt) {
     var x = pt.x;
@@ -298,13 +313,11 @@ window.onload = function () {
     return rectOfInterest;
   }
 
-  //fetching data
+  //fetching data and then render page
   fetch('/imgdata/')
   .then(response => response.json())
   .then(items => {
-    items.forEach(item => {
-      pages.push(item);
-    });
+    pages = items;
 
     var urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('page')) {
@@ -315,8 +328,9 @@ window.onload = function () {
       }
     } 
     return nextBtn.click();
-  });//end fetching data and rendering
-};
+  });//fetching data and rendering
+
+};//onload
 </script>
 </body>
 </html>
