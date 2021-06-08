@@ -1,15 +1,14 @@
-< -DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
 <title>Classify</title>
 
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap-theme.min.css">
 <style>
-#map-container {
+#map {
   /* max size for free maps is 640 */
   width: 640px;
   height: 600px;
@@ -20,7 +19,7 @@
 <div class="row">
 
   <div class="col-md-8">
-    <div id="map-container">
+    <div id="map">
     </div>    
   </div>
 
@@ -28,14 +27,7 @@
       <p>Classifier created at <span id="classifier-ts"></span></p>
   </div>
 
-
 </div>
-
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
-
-<script src="//cdnjs.cloudflare.com/ajax/libs/ramda/0.10.0/ramda.min.js"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBZnCWLhb4CE2oD4TmrpcRVlnmfYsYk6DE&v=3&libraries=geometry"></script>
 
 <script src="mercata.js"></script>
 
@@ -129,8 +121,7 @@ var calcBounds = function (center,size) {
      e=google.maps.geometry.spherical.computeOffset(center,size.width/2,90).lng(),
      w=google.maps.geometry.spherical.computeOffset(center,size.width/2,270).lng();
 
-     return new google.maps.LatLngBounds(new google.maps.LatLng(s,w),
-                                          new google.maps.LatLng(n,e));
+     return new google.maps.LatLngBounds(new google.maps.LatLng(s,w), new google.maps.LatLng(n,e));
 };
 
 // Map Bounds FirebaseRef Color -> Rectangle
@@ -156,7 +147,8 @@ var qry = function (lat, lng, width, height, zoom) {
 };
 
 //https://developers.google.com/maps/documentation/javascript/examples/control-custom-state
-var CenterControl = function (controlDiv, map) {
+class CenterControl {
+  constructor(controlDiv, map) {
 
   // Set CSS for the control border
   var controlUI = document.createElement('div');
@@ -178,7 +170,7 @@ var CenterControl = function (controlDiv, map) {
   controlText.style.lineHeight = '38px';
   controlText.style.paddingLeft = '5px';
   controlText.style.paddingRight = '5px';
-  controlText.innerHTML = 'Classify Pools';
+  controlText.innerHTML = 'Detect Pools';
   controlUI.appendChild(controlText);
 
   google.maps.event.addDomListener(controlUI, 'click', function() {
@@ -188,33 +180,32 @@ var CenterControl = function (controlDiv, map) {
 
     // server should send back [{x: y: w: h:}]
     // draw recommendation using those...
-    $.getJSON( "/classify?"+qry(latLng.lat(), latLng.lng(), 640, 600, zoom), function( data ) {
-
-      $.map( data, function( xywh ) {
+    fetch('/detect/?'+qry(latLng.lat(), latLng.lng(), 640, 600, zoom))
+    .then(response => response.json())
+    .then(data => {
+      data.forEach(xywh => {
         var bounds = fromXYWHToBounds(xywh);
-
-        return placeTempRect(map, bounds, "#FF0000"); 
+        return placeTempRect(map, bounds, "#FF0000");
       });
-
-      console.log("Classified with ", data);
-    });
+      console.log("Predictions:", data);
+    });//fetch
 
   });
-};
+  }
+}
 
-var initialize = function () {
-  var mapOptions = {
+var initMap = function () {
+ 
+  map = new google.maps.Map(document.getElementById('map'), {
     zoom: 18,
     center: new google.maps.LatLng(43.35975, -79.77),
     mapTypeId: google.maps.MapTypeId.SATELLITE,
     disableDefaultUI: true,
     zoomControl: true,
     streetViewControl: false
-  };
-  map = new google.maps.Map(document.getElementById('map-container'),
-    mapOptions);
+  });
 
-    // Create the DIV to hold the control and
+  // Create the DIV to hold the control and
   // call the CenterControl() constructor passing
   // in this DIV.
   var centerControlDiv = document.createElement('div');
@@ -223,17 +214,11 @@ var initialize = function () {
   centerControlDiv.index = 1;
   map.controls[google.maps.ControlPosition.TOP_RIGHT].push(centerControlDiv);
 
-  $.get( "classifier-ts.txt", function( data ) {
-    $( "#classifier-ts" ).text( data );
-  });
-
   return "done";
-};
-
-google.maps.event.addDomListener(window, 'load', function () {
-    console.log(initialize());
-});
+};//initMap
 
 </script>
     
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBZnCWLhb4CE2oD4TmrpcRVlnmfYsYk6DE&v=3&libraries=geometry&callback=initMap"></script>
+
 </body></html>

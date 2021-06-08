@@ -26,14 +26,23 @@ def imgdata():
         data.append(obj)
   return json.dumps(data)
 
-  @app.route('/prediction/')
-  def prediction():
-    img_path = request.args.get('img_path')
-    print(img_path)
-    json_path = img_path.replace('images', 'predictions').replace('jpg', 'json')
-    with app.open_resource(json_path) as fin:
-      pred = json.load(fin)
-    return json.dumps(pred)
+#@app.route('/predictions/')
+#def prediction():
+#  img_path = request.args.get('img_path')
+#  print(img_path)
+#  json_path = img_path.replace('images', 'predictions').replace('jpg', 'json')
+#  with app.open_resource(json_path) as fin:
+#    pred = json.load(fin)
+#  return json.dumps(pred)
+
+#changeme: need to run Pytorch model here but 
+#repl.it limits disk space
+@app.route('/detect/')
+def detect():
+  pred = [
+    {'x':100, 'y':100, 'w':20, 'h':20}
+  ]
+  return json.dumps(pred)
 
 @app.route('/save/', methods = ['POST'])
 def save_page():
