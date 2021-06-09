@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>negatives</title>
+<title>dynamic to static to img</title>
 
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap-theme.min.css">
 <style>
 #map-container, #static-map-container {
-  width: 200px;
-  height: 200px;
+  width: 400px;
+  height: 400px;
 }
 </style>
 </head><body>
@@ -30,20 +30,11 @@
       </ol>
   </div>
 
-  <div class="col-md-4">
+  <div class="col-md-4" id="staticmap-container">
     <canvas id="staticmap-canvas"></canvas>
   </div>
 
-  <div class="col-md-2" id="img-links">
-  </div>
-
 </div>
-
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
-
-<script src="//cdnjs.cloudflare.com/ajax/libs/ramda/0.14.0/ramda.min.js"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBZnCWLhb4CE2oD4TmrpcRVlnmfYsYk6DE&v=3&libraries=geometry"></script>
 
 <script>
 var map;// dynamic v3 not static
@@ -52,23 +43,7 @@ var a_from_path = function (path) {
   return "<a href='"+path+"'>"+path+"</a>";
 };
 
-var loadImageLinks = function () {
-  $.ajax({
-    url: "/negative",
-    cache: false
-  }).done(function( txt ) {
-    
-    var hrefs = R.map(a_from_path, R.split("\n", txt));
-    console.log(hrefs);
-    $( "#img-links" ).html(R.intersperse("<br/>", hrefs));
-
-    console.log("added links to the negative images");
-  });
-
-  return "initiated fetching negative images";
-};
-
-var initialize = function () {
+function initMap() {
 
   var mapOptions = {
     zoom: 18,
@@ -80,20 +55,20 @@ var initialize = function () {
   };
   map = new google.maps.Map(document.getElementById('map-container'), mapOptions);
 
-  loadImageLinks();
   wireUpHandlers();
 
   return "done";
-};
+}
 
-google.maps.event.addDomListener(window, 'load', function () {
-    console.log(initialize());
-});
+function inspect() {
+  const ne = map.getBounds().getNorthEast();
+  const sw = map.getBounds().getSouthWest();
+  console.log('ne', ne);
+  console.log('sw', sw);
+  console.log('w', sw.lng()-ne.lng());
+  console.log('h', sw.lat()-ne.lat());
+}
 
-var qry = function (lat, lng, width, height, zoom) {
-  var s = "lat="+lat+"&lng="+lng+"&zoom="+zoom+"&width="+width+"&height="+height;
-  return s;
-};
 
 var wireUpHandlers = function () {
 
@@ -117,9 +92,14 @@ var wireUpHandlers = function () {
       drawImage(this, canvasUnder);
     };
 
-    var latLng = map.getCenter();
-    var zoom = map.getZoom();
-    imageObj.src = "/staticmap?"+qry(latLng.lat(), latLng.lng(), 200, 200, zoom);
+    let url = `https://maps.googleapis.com/maps/api/staticmap?center=${ map.getCenter().lat() },${ map.getCenter().lng()}&zoom=${ map.getZoom() }&size=400x400&maptype=satellite&key=AIzaSyDJHNZPgCpEYbDmr_dn6Y66U0jXxzeeErQ&`;
+    imageObj.onload = function() {
+      var canvasUnder = document.getElementById("staticmap-canvas");
+      drawImage(this, canvasUnder);
+    };
+    imageObj.src = url;
+
+    //imageObj.src = "/staticmap?"+qry(latLng.lat(), latLng.lng(), 400, 400, zoom);
 
     return "done";
   });
@@ -128,8 +108,6 @@ var wireUpHandlers = function () {
 
     // send over clean image
     var canvas = document.createElement("canvas");
-    canvas.width = imageObj.width;
-    canvas.height = imageObj.height;
     canvas.getContext("2d").drawImage(imageObj, 0, 0, imageObj.width, imageObj.height);
 
     var imgData = canvas.toDataURL();
@@ -152,12 +130,10 @@ var wireUpHandlers = function () {
     request.fail(function( jqXHR, textStatus ) {
       alert( "Request failed: " + textStatus );
     });
-
-
   });
-
 };
 
 </script>
     
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDJHNZPgCpEYbDmr_dn6Y66U0jXxzeeErQ&v=3&libraries=geometry&callback=initMap"></script> 
 </body></html>
