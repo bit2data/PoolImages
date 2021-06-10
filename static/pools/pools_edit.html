@@ -23,7 +23,7 @@
 </style>
 </head><body>
 
-<p>Add or Remove</p>
+<p>Label vs Predictions</p>
 <div class="wrapper">
     <div class="imgContainer">
       <img id="baseImage" 
@@ -35,14 +35,14 @@
     </div>   
 </div>
 <div>
+  <button id="prevBtn" class="buttonStyle">&larr; Prev</button>
   <input type="text" id="filename">
   <input type="text" id="note">
   <button id="scaleBtn" class="buttonStyle" onclick=save()>Save Changes</button>
+  <button id="nextBtn" class="buttonStyle">Next &rarr;</button>
 </div>
 
 <script>
-
-var page;//123.json contains img path, [{x: y: w: h:}] 
 
 //changeme: auto save upon add/remove a rect
 function save() {
@@ -51,15 +51,49 @@ function save() {
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(page)
+    body: JSON.stringify(currPage())
   }).then(res => {
     console.log("Request complete! response:", res);
     alert(res);
   });
 }
 
+//navigation
+var pages = [];//JSON get fetched and 'pages' are populated on load; page contains rects; each rect marks a pool on the image
+
+var pageIndex = -1;
+
+function  currPage() {
+  return pages[pageIndex];
+}
+
+function next() {
+  pageIndex += 1;
+  return navigate();
+}
+
+//BUG: going back beyond page=0, going forward skips page=0 to page=1
+function prev() {
+  //pageIndex -= 1;
+  //return navigate();
+  return history.back();
+}
+
+function navigate() {
+  var url = '?page=' + pageIndex;
+  history.pushState(pageIndex, null, url);
+  return renderPage(currPage());
+}
+
+window.onpopstate = function (e) {
+  console.log('restore: ', e.state);
+  if (e.state != null) pageIndex = e.state;
+  return renderPage(currPage());
+};
+// end of navigation logic
+
 // {} -> Bool
-function renderPage() {
+function renderPage (page) {
   if (!page) {
     alert('nothing to display')
     return false;
@@ -125,6 +159,18 @@ function clear(ctx) {
 window.onload = function () {
   console.log("onload");
 
+  var nextBtn = document.getElementById("nextBtn");
+  var prevBtn = document.getElementById("prevBtn");
+  nextBtn.addEventListener('click', next, false);
+  prevBtn.addEventListener('click', prev, false);
+
+  document.addEventListener('keydown', event => {
+    // if alt is pressed, skip
+    if (event.altKey) return false;
+    if (event.code === 'ArrowRight') return nextBtn.click();
+    if (event.code === 'ArrowLeft') return prevBtn.click();
+  });
+
   //Edit rectangles via Pointers
   var start = {x:0, y:0};
   var end = {x:0, y:0};
@@ -183,10 +229,10 @@ window.onload = function () {
       var rectOfInterest = rectContainingPt(start);
       if (rectOfInterest) {
         if (confirm('Remove this box?')) {
-          var index = page.rects.indexOf(rectOfInterest);
-          if (-1 < index) page.rects.splice(index, 1);
+          var index = currPage().rects.indexOf(rectOfInterest);
+          if (-1 < index) currPage().rects.splice(index, 1);
           var ctx = document.getElementById("bottomCanvas").getContext('2d');
-          renderPoolMarks(page.rects, ctx);
+          renderPoolMarks(currPage().rects, ctx);
           console.log('removed', rectOfInterest);
         } 
       }       
@@ -204,11 +250,11 @@ window.onload = function () {
           h: end.y - start.y
         };
 
-        page.rects.push(newRect);
+        currPage().rects.push(newRect);
         renderPoolMark();//clear the top layer
 
         var ctx = document.getElementById("bottomCanvas").getContext('2d');
-        renderPoolMarks(page.rects, ctx);
+        renderPoolMarks(currPage().rects, ctx);
         resetPts();
         return 'added a rect';
     }
@@ -254,7 +300,7 @@ window.onload = function () {
     var x = pt.x;
     var y = pt.y;
     var rectOfInterest = false;
-    page.rects.forEach(rect => {
+    currPage().rects.forEach(rect => {
       if (rect.x <= x && x <= rect.x + rect.w &&
           rect.y <= y && y <= rect.y + rect.h) {
         rectOfInterest = rect;
@@ -266,19 +312,22 @@ window.onload = function () {
     });
     return rectOfInterest;
   }
-  let url = '/static/pools/images/test/0.json';
-  var urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has('p')) {
-    url = `/static/pools/images/${urlParams.get('p')}`;
-    console.log('working with', url);
-  }
 
   //fetching data and then render page
-  fetch(url)
+  fetch('/imgdata/')
   .then(response => response.json())
-  .then(item => {
-    page = item;
-    return renderPage();
+  .then(items => {
+    pages = items;
+
+    var urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('page')) {
+      var pageNum = Number(urlParams.get('page'));
+      if (!isNaN(pageNum)) {
+        pageIndex = pageNum;
+        return renderPage(currPage());
+      }
+    } 
+    return nextBtn.click();
   });//fetching data and rendering
 
 };//onload

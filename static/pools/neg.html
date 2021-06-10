@@ -75,8 +75,7 @@ var wireUpHandlers = function () {
   var imageObj = new Image();
 
   // google maps come in 2 flavors, interactive and static
-  // static is the one we want to send back to the server to be used in Trainig
-  // so we want to mirror interactive in static image
+  // static is the one to save as input to ML 
   google.maps.event.addDomListener(document.getElementById("btnDraw"), 'click', function () {
 
     var drawImage = function (img, canvas) {
@@ -92,14 +91,7 @@ var wireUpHandlers = function () {
       drawImage(this, canvasUnder);
     };
 
-    let url = `https://maps.googleapis.com/maps/api/staticmap?center=${ map.getCenter().lat() },${ map.getCenter().lng()}&zoom=${ map.getZoom() }&size=400x400&maptype=satellite&key=AIzaSyDJHNZPgCpEYbDmr_dn6Y66U0jXxzeeErQ&`;
-    imageObj.onload = function() {
-      var canvasUnder = document.getElementById("staticmap-canvas");
-      drawImage(this, canvasUnder);
-    };
-    imageObj.src = url;
-
-    //imageObj.src = "/staticmap?"+qry(latLng.lat(), latLng.lng(), 400, 400, zoom);
+    imageObj.src = `/staticmap?lat=${map.getCenter().lat()}&lng=${map.getCenter().lng()}&width=400&height=400&zoom=${map.getZoom()}`;
 
     return "done";
   });
@@ -134,6 +126,6 @@ var wireUpHandlers = function () {
 };
 
 </script>
-    
+
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDJHNZPgCpEYbDmr_dn6Y66U0jXxzeeErQ&v=3&libraries=geometry&callback=initMap"></script> 
 </body></html>
