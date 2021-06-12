@@ -7,32 +7,85 @@ app = Flask('app', static_url_path='/static')
 
 @app.route('/')
 def home():
-  return imgdata()
+  #return imgdata()
+  return preview()
 
+# from /static/pools/new.html user gets here
+# when the area of interest (200 sqm) is clicked
+# user can try out Prediction
+@app.route('/preview/', methods=['get', 'post'])
+def preview():
+  src = '/staticmap?lat=43.35975&lng=-79.77&zoom=18&width=400&height=400'
+  return render_template('preview.html', src=src)
+
+# from /preview/ user sends imgdata to be saved
+@app.route('/new/', methods=['GET', 'POST'])
+def new():
+  import base64
+  payload = request.json
+  imgData = payload['imgData']
+  #imgData = request.values.get("imgData")
+  print('image data size', len(imgData))
+  #"data:image/png;base64,iVBORw0KGgo....""
+  imgtype, data = imgData.split(',', 1)
+  print('imgtype', imgtype) # data:image/png;base64
+  print('size after split:', len(data))
+  imgdata = base64.b64decode(data)
+
+  import random 
+  from datetime import datetime
+  random.seed(datetime.now())
+ 
+  alphas = list('ABCDEFGHJKLMNPQRSTVWXYZabcdefghijkmnpqrstvwxyz')
+  rchars = ''.join(random.sample(alphas, 7))
+  img_path = '/static/pools/images/new/{}.jpg'.format(rchars)
+  json_path = '/static/pools/images/new/{}.json'.format(rchars)
+
+  #changeme: fill with actual predictions 
+  data = {
+    "rect_count": 2, 
+    "rects": [
+      {"x": 76, "y": 142, "w": 22, "h": 22}, 
+      {"x": 171, "y": 270, "w": 25, "h": 17}
+    ], 
+    "w": 400, 
+    "h": 400, 
+    "image_path": img_path, 
+    "json_path": json_path
+  }
+
+  record_as_json(data, '.'+json_path)
+
+  with open('.'+img_path, "wb") as fout:
+    fout.write(imgdata)
+  
+  return "/static/pools/pool_edit.html?p=new/{}.json".format(rchars)
 
 # from /staticmap?lat=43.35975&lng=-79.77&zoom=18&width=400&height=400
 @app.route('/staticmap')
 def staticmap():
+
+  r = fetch_static_map_r()
+  
+  def generate():
+    for chunk in r.iter_content(1024):
+      yield chunk
+      
+  return Response(generate(), headers = dict(r.headers))
+
+def fetch_static_map_r():
   from security import map_api_key
-  CHUNK_SIZE = 1024
   d = {
     "lat": request.args.get("lat", '43.0'),
     "lng": request.args.get("lng", '-79.0'),
     "width": request.args.get("width", '400'),
     "height": request.args.get("height", '400'),
-    "zoom": request.args.get("zoom", '18A'),
+    "zoom": request.args.get("zoom", '18'),
     "key": map_api_key
   }
   url = "https://maps.googleapis.com/maps/api/staticmap?center={lat},{lng}&zoom={zoom}&size={width}x{height}&maptype=satellite&key={key}".format(**d)
 
-  r = get_source_rsp(url)
-  headers = dict(r.headers)
-
-  def generate():
-    for chunk in r.iter_content(CHUNK_SIZE):
-      yield chunk
-      
-  return Response(generate(), headers = headers)
+  return get_source_rsp(url)
 
 
 def get_source_rsp(url):
@@ -125,10 +178,6 @@ def record_as_json(obj, relpath):
   with open(where, 'w') as fout:
     json.dump(obj, fout)
   return where
-
-@app.route('/edit/')
-def edit():
-    return render_template('pool_edit.html')
 
 
 if __name__ == '__main__':

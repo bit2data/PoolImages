@@ -11,6 +11,8 @@
   #map { height: 100% }
 </style>
 
+<script src="mercata.js"></script>
+
 <script type="text/javascript">
 
 function placeMarker(map, lat, lng, comment) {
@@ -30,7 +32,7 @@ function placeMarker(map, lat, lng, comment) {
   return marker;
 }
 
-function placeRect(map, lat, lng) {
+function placeRect(map, nw, se) {
     const rectangle = new google.maps.Rectangle({
     strokeColor: "#FF0000",
     strokeOpacity: 0.8,
@@ -39,11 +41,11 @@ function placeRect(map, lat, lng) {
     fillOpacity: 0.35,
     map,
     bounds: {
-      north: lat,           
-      south: lat - 0.002,  //height of 400px at pool zoom
-      east: lng,            
-      west: lng - 0.002   
-    },
+      north: nw.lat,
+      south: se.lat,
+      west: nw.lng,
+      east: se.lng
+    }
   });
 }
 
@@ -72,7 +74,7 @@ function initMap() {
   const coordInfoWindow = new google.maps.InfoWindow();
   let tid;
 
-  loadData();
+  //loadData();
   update(coordInfoWindow);
 
   map.addListener("zoom_changed", () => {
@@ -95,35 +97,46 @@ function update(coordInfoWindow) {
   coordInfoWindow.setContent(createInfoWindowContent(center, map.getZoom()));
   coordInfoWindow.setPosition(center);
   coordInfoWindow.open(map);
+
+  // center in latLng -> to center in pixel
+  const cip = worldToPixel(project(center), map.getZoom());
+  console.log('center in pixel', cip);
+  let nw = {x:cip.x-200, y:cip.y-200};
+  let se = {x:cip.x+200, y:cip.y+200};
+  console.log('nw', nw);
+  console.log('sw', se);
+  nw = pixToLatLng(nw);
+  se = pixToLatLng(se);
+  placeRect(map, nw, se); 
 }
 
-
-const TILE_SIZE = 256;
 
 function createInfoWindowContent(latLng, zoom) {
   const scale = 1 << zoom;
   const worldCoordinate = project(latLng);
-  const pixelCoordinate = new google.maps.Point(
-    Math.floor(worldCoordinate.x * scale),
-    Math.floor(worldCoordinate.y * scale)
-  );
-  const tileCoordinate = new google.maps.Point(
-    Math.floor((worldCoordinate.x * scale) / TILE_SIZE),
-    Math.floor((worldCoordinate.y * scale) / TILE_SIZE)
-  );
+  const pixelCoordinate = worldToPixel(worldCoordinate, scale);
+  const pt = worldToLatLng(worldCoordinate); 
+
   return [
     "Center at",
     "LatLng: " + `(${latLng.lat},${latLng.lng})`,
     "Zoom level: " + zoom,
     "World Coordinate: " + worldCoordinate,
     "Pixel Coordinate: " + pixelCoordinate,
-    "Tile Coordinate: " + tileCoordinate,
+    "back to LatLng: " + `${pt.lat},${pt.lng}`,
   ].join("<br>");
 }
 
-// The mapping between latitude, longitude and pixels is defined by the web
-// mercator projection.
+const latLntToPixel = latLng => worldToPixel(latLngToWorld(latLng), (1 << map.getZoom()));
+const worldToPixel = (worldCoordinate, scale) => new google.maps.Point(
+    Math.floor(worldCoordinate.x * scale),
+    Math.floor(worldCoordinate.y * scale)
+);
+const latLngToWorld = latLng => new MercatorProjection().fromLatLngToPoint(new google.maps.LatLng(latLng.lat, latLng.lng));
+
+// switch to MercatorProjection.fromLatLngToPoint
 function project(latLng) {
+  const TILE_SIZE = 256;
   let siny = Math.sin((latLng.lat * Math.PI) / 180);
   // Truncating to 0.9999 effectively limits latitude to 89.189. This is
   // about a third of a tile past the edge of the world tile.
@@ -134,6 +147,13 @@ function project(latLng) {
   );
 }
 
+const pixToLatLng = point => worldToLatLng(pixelToWorld(point, 1 << map.getZoom()));
+const pixelToWorld = (point, scale) => new google.maps.Point(point.x / scale,
+point.y / scale);
+const worldToLatLng = function(point) {
+  const latLng = new MercatorProjection().fromPointToLatLng(point);
+  return {lat:latLng.lat(), lng:latLng.lng()};
+};
 </script>
 
 <title>Somewhere</title>

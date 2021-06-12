@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Preview</title>
+
+<style>
+
+#map-container {
+  width: 400px;
+  height: 400px;
+}
+
+</style>
+</head><body>
+
+<div class="map-container">
+  <img id="map" src="{{src}}">
+</div>
+
+<div class="col-md-2">      
+  <button class="" id="btnDetect"> Detect </button>
+  <button class="" id="btnSave" onclick=save()> Save </button>
+</div>
+
+<script>
+
+function save() {
+
+    const imageObj = document.getElementById('map');
+    //alert(imageObj.width+'x'+imageObj.height);
+    // send over clean image
+    const canvas = document.createElement("canvas");
+    canvas.width = imageObj.width;//critical
+    canvas.height = imageObj.height;//critical
+
+    canvas.getContext("2d").drawImage(imageObj, 0, 0, imageObj.width, imageObj.height);
+
+    const payload = {
+      imgData : canvas.toDataURL('image/jpeg', 1.0)
+    };
+    console.log("payload 2 map images", payload);
+    //alert("img data size: "+payload.imgData.length);
+
+    fetch('/new/', {
+      method  : 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    }).then(response => {
+      console.log(response.headers.get('Content-Type'));
+      console.log(response.headers.get('Date'));
+
+      console.log(response.status);
+      console.log(response.statusText);
+      console.log(response.type);
+      console.log(response.url);
+      return response.text();
+    }).then(whereToGo => {
+      window.location.replace(whereToGo);
+    });
+
+}//wireup UI function
+
+</script>
+
+</body></html>

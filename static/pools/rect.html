@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>New Pools Data</title>
+
+<style>
+
+html { height: 100% }
+body { height: 100%; margin: 0; padding: 0 }
+#map { height: 100% }
+
+</style>
+</head><body>
+
+<div id="map"></div>    
+
+<script src="mercata.js"></script>
+
+<script>
+
+var map;
+
+// LatLng -> Point
+var fromLatLngToPixelCoordinates = function (latLng) {
+  var numTiles = 1 << map.getZoom();
+  var projection = new MercatorProjection();
+  var worldCoordinate = projection.fromLatLngToPoint(latLng);
+  var pixelCoordinate = new google.maps.Point(
+      Math.floor(worldCoordinate.x * numTiles),
+      Math.floor(worldCoordinate.y * numTiles));
+
+  return pixelCoordinate;
+};
+
+// Point -> LatLng
+var fromPixelCoordinatesToLatLng = function (point) {
+  var numTiles = 1 << map.getZoom();
+  var projection = new MercatorProjection();
+
+  var worldCoordinate = new google.maps.Point(point.x * 1.0 / numTiles, point.y * 1.0 / numTiles);
+  return projection.fromPointToLatLng(worldCoordinate);
+};
+
+// Bounds -> {x:int, y:int, w:int, h:int}
+var fromBoundsToXYWH = function (bounds) {
+
+    var sw = bounds.getSouthWest();
+    var ne = bounds.getNorthEast();
+    var nw = new google.maps.LatLng(ne.lat(), sw.lng());
+    var se = new google.maps.LatLng(sw.lat(), ne.lng());
+
+    var pixelCoordinates = {
+      nw: fromLatLngToPixelCoordinates(nw),
+      ne: fromLatLngToPixelCoordinates(ne),
+      sw: fromLatLngToPixelCoordinates(sw),
+      se: fromLatLngToPixelCoordinates(se)
+    };
+
+    return {
+      x: pixelCoordinates.nw.x,
+      y: pixelCoordinates.nw.y,
+      w: pixelCoordinates.ne.x - pixelCoordinates.nw.x, 
+      h: pixelCoordinates.se.y - pixelCoordinates.ne.y
+    };
+};
+
+// {x: y: w: h:} -> Bounds
+var fromXYWHToBounds = function (xywh) {
+  var topUpperLeft = fromBoundsToXYWH(map.getBounds());
+
+  //in world/pixel coordinate
+  var sw = {
+    x: topUpperLeft.x + xywh.x,
+    y: topUpperLeft.y + xywh.y + xywh.h
+  };
+
+  var ne = {
+    x: topUpperLeft.x + xywh.x + xywh.w,
+    y: topUpperLeft.y + xywh.y 
+  };
+
+  return new google.maps.LatLngBounds(fromPixelCoordinatesToLatLng(sw), fromPixelCoordinatesToLatLng(ne));
+};
+
+// LatLng {width: height} -> Bounds
+var calcBounds = function (center,size) {
+
+  const nsew = {
+    north: google.maps.geometry.spherical.computeOffset(center, size.height/2, 0).lat(),
+
+    south: google.maps.geometry.spherical.computeOffset(center, size.height/2, 180).lat(),
+
+    east: google.maps.geometry.spherical.computeOffset(center, size.width/2, 90).lng(),
+
+    west: google.maps.geometry.spherical.computeOffset(center, size.width/2, 270).lng()
+  };
+  console.log('nsew', nsew);
+
+  return nsew;
+};
+
+// Map Bounds FirebaseRef Color -> Rectangle
+// represent the classified region with a Box, with different color
+const placeTempRect = (map, bounds, color) =>  new google.maps.Rectangle({
+  strokeColor: color,
+  strokeOpacity: 0.5,
+  strokeWeight: 1,
+  fillColor: color,
+  fillOpacity: 0.1,
+  map: map,
+  bounds: bounds
+});
+
+var qry =  (lat, lng, width, height, zoom) => ["lat=",lat,"lng=",lng,"zoom=",zoom,"width=",width,"height=",height].join('&');
+
+function detectPools() {
+
+  var latLng = map.getCenter();
+  var zoom = map.getZoom();
+
+  // server should send back [{x: y: w: h:}]
+  // draw recommendation using those...
+  fetch('/detect/?'+qry(latLng.lat(), latLng.lng(), 600, 600, zoom))
+  .then(response => response.json())
+  .then(data => {
+    data.forEach(xywh => {
+      var bounds = fromXYWHToBounds(xywh);
+      return placeTempRect(map, bounds, "#FF0000");
+    });
+    console.log("Predictions:", data);
+  });//fetch
+}
+
+function initMap() {
+
+  const mapContainer = document.getElementById('map');
+  map = new google.maps.Map(mapContainer, {
+    zoom: 18,
+    center: new google.maps.LatLng(43.35975, -79.77),
+    mapTypeId: google.maps.MapTypeId.SATELLITE,
+    disableDefaultUI: true,
+    zoomControl: true,
+    streetViewControl: false
+  });
+
+  // draw the rectangle representing approximate area
+  // that corresponds to 400x400 at the "pool" zoom i.e. 
+  // 200 square meters
+  // when the user click the area, construe as taking
+  // a snapshot of that area to be used as new data point
+  let rect, lid, tid;
+  
+  const updateRect = function () {
+
+    if (lid) google.maps.event.removeListener(lid);
+    if (rect) rect.setMap(null);
+
+    const size = {width: 200, height: 200};// 200 sq m
+    const target = calcBounds(map.getCenter(), size);
+    console.log('target', target);
+
+    rect = placeTempRect(map, target, "#FF0000");
+    lid = google.maps.event.addListener(rect, "click",  (mouseEvent) => {
+      console.log('rect is clicked')    
+      alert('save picture and edit it');
+    }); 
+    return "udpated rectangle of interest";
+  };
+  
+  updateRect();
+
+  map.addListener("zoom_changed", () => {
+    updateRect();
+  });
+
+  map.addListener("center_changed", () => {
+    //prevent multiple/zitter
+    if (tid) window.clearTimeout(tid);
+
+    tid = window.setTimeout(() => {
+      updateRect();
+    }, 1500);
+  });
+
+  return "initMap done";
+};
+
+</script>
+    
+<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDJHNZPgCpEYbDmr_dn6Y66U0jXxzeeErQ&libraries=geometry&callback=initMap" async> </script>
+
+</body></html>
