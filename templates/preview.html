@@ -16,16 +16,41 @@
 </style>
 </head><body>
 
+<script src="/static/pools/mercata.js"></script>
+
+<script src="/static/pools/box.js"></script>
+
 <div class="map-container">
   <img id="map" src="{{src}}">
 </div>
 
 <div class="col-md-2">      
-  <button class="" id="btnDetect"> Detect </button>
+  <button class="" id="btnDetect" onclick=detect()> Detect </button>
   <button class="" id="btnSave" onclick=save()> Save </button>
 </div>
 
 <script>
+
+// -> IO -> String
+function detect() {
+
+  var latLng = map.getCenter();
+  var zoom = map.getZoom();
+
+  // server should send back [{x: y: w: h:}]
+  // draw recommendation using those...
+  fetch('/detect/?'+qry(latLng.lat(), latLng.lng(), 600, 600, zoom))
+  .then(response => response.json())
+  .then(data => {
+    data.forEach(xywh => {
+      var bounds = fromXYWHToBounds(xywh);
+      return placeTempRect(map, bounds, "#FF0000");
+    });
+    console.log("Predictions:", data);
+  });//fetch
+  return 'pools detected';
+}
+
 
 function save() {
 
@@ -63,7 +88,7 @@ function save() {
       window.location.replace(whereToGo);
     });
 
-}//wireup UI function
+}//save
 
 </script>
 

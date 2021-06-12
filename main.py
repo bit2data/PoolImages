@@ -8,14 +8,31 @@ app = Flask('app', static_url_path='/static')
 @app.route('/')
 def home():
   #return imgdata()
-  return preview()
+  return hunt()
 
-# from /static/pools/new.html user gets here
-# when the area of interest (200 sqm) is clicked
-# user can try out Prediction
+# present BIG Google map such that
+# user can choose Area of Interest
+# upon clicking such Area
+# direct to /preview/
+@app.route('/hunt/')
+def hunt():
+  from security import pub_map_api_key
+  return render_template('hunt.html', key = pub_map_api_key)
+
+
+# from /hunt/ user gets here
+# user can try out Prediction and/or
+# save to be used as a new data point
 @app.route('/preview/', methods=['get', 'post'])
 def preview():
-  src = '/staticmap?lat=43.35975&lng=-79.77&zoom=18&width=400&height=400'
+  d = {
+    "lat": request.args.get("lat", '43.0'),
+    "lng": request.args.get("lng", '-79.0'),
+    "width": request.args.get("width", '400'),
+    "height": request.args.get("height", '400'),
+    "zoom": request.args.get("zoom", '18'),
+  }
+  src = '/staticmap?lat={lat}&lng={lng}&zoom={zoom}&width={width}&height={height}'.format(**d)
   return render_template('preview.html', src=src)
 
 # from /preview/ user sends imgdata to be saved
@@ -61,17 +78,16 @@ def new():
   
   return "/static/pools/pool_edit.html?p=new/{}.json".format(rchars)
 
-# from /staticmap?lat=43.35975&lng=-79.77&zoom=18&width=400&height=400
+# serve Image Data
+# e.g. Input: /staticmap?lat=43.35975&lng=-79.77&zoom=18&width=400&height=400
 @app.route('/staticmap')
 def staticmap():
-
-  r = fetch_static_map_r()
-  
+  r = fetch_static_map_r()  
   def generate():
     for chunk in r.iter_content(1024):
       yield chunk
-      
   return Response(generate(), headers = dict(r.headers))
+
 
 def fetch_static_map_r():
   from security import map_api_key
@@ -87,7 +103,6 @@ def fetch_static_map_r():
 
   return get_source_rsp(url)
 
-
 def get_source_rsp(url):
     # Pass original Referer for subsequent resource requests
     proxy_ref = proxy_ref_info(request)
@@ -102,6 +117,7 @@ def split_url(url):
   rest = rest[2:].split('/', 1)
   host, uri = (rest[0], rest[1]) if len(rest) == 2 else (rest[0], "")
   return (proto, host, uri)
+
 
 # Request -> (String, String)
 def proxy_ref_info(request):
@@ -125,11 +141,12 @@ def proxy_ref_info(request):
       return r
   return None
 
-
+# -> [{}]
+# serve from 3 directories where the images and corresponding .json files reside
 @app.route('/imgdata/')
 def imgdata():
   data = []
-  srcs = ['test', 'train']
+  srcs = ['new', 'test', 'train']
   for src in srcs:
     basedir = 'static/pools/images/{}'.format(src)
     print(basedir)
@@ -144,14 +161,6 @@ def imgdata():
         data.append(obj)
   return json.dumps(data)
 
-#@app.route('/predictions/')
-#def prediction():
-#  img_path = request.args.get('img_path')
-#  print(img_path)
-#  json_path = img_path.replace('images', 'predictions').replace('jpg', 'json')
-#  with app.open_resource(json_path) as fin:
-#    pred = json.load(fin)
-#  return json.dumps(pred)
 
 #changeme: need to run Pytorch model here but 
 #repl.it limits disk space
@@ -161,6 +170,7 @@ def detect():
     {'x':100, 'y':100, 'w':20, 'h':20}
   ]
   return json.dumps(pred)
+
 
 @app.route('/save/', methods = ['POST'])
 def save_page():
@@ -172,12 +182,15 @@ def save_page():
     page = json.load(fin)
   return json.dumps(page)
 
+
 # {} Path -> IO -> Path
 def record_as_json(obj, relpath):
   where = os.path.join(app.root_path, relpath)
   with open(where, 'w') as fout:
     json.dump(obj, fout)
   return where
+
+
 
 
 if __name__ == '__main__':
