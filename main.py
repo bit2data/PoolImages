@@ -177,11 +177,12 @@ def detect():
   print('image data size', len(imgData))
   #"data:image/png;base64,iVBORw0KGgo....""
   imgtype, data = imgData.split(',', 1)
-  print('imgtype', imgtype) # data:image/png;base64
+  print('imgtype', imgtype) # data:image/jpeg;base64
   print('size after split:', len(data))
   img = Image.open(io.BytesIO( base64.b64decode(data)))
 
   pred = spotter.predict_pools_on_img(img)
+  print('predictions', pred)
   return json.dumps(pred)
 
 
