@@ -40,7 +40,6 @@ def preview():
 # from /preview/ user sends imgdata to be saved
 @app.route('/new/', methods=['GET', 'POST'])
 def new():
-  import base64
   payload = request.json
   imgData = payload['imgData']
   #imgData = request.values.get("imgData")
@@ -168,9 +167,20 @@ def imgdata():
 #repl.it limits disk space
 @app.route('/detect/', methods=['get', 'post'])
 def detect():
+  from PIL import Image
   from poolspotter import PoolSpotter
+
   spotter = PoolSpotter()
-  img = {}
+  
+  payload = request.json
+  imgData = payload['imgData']
+  print('image data size', len(imgData))
+  #"data:image/png;base64,iVBORw0KGgo....""
+  imgtype, data = imgData.split(',', 1)
+  print('imgtype', imgtype) # data:image/png;base64
+  print('size after split:', len(data))
+  img = Image.open(io.BytesIO( base64.b64decode(data)))
+
   pred = spotter.predict_pools_on_img(img)
   return json.dumps(pred)
 
