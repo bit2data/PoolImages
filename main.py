@@ -5,10 +5,12 @@ import requests as req
 
 app = Flask('app', static_url_path='/static')
 
+
 @app.route('/')
 def home():
   #return imgdata()
-  return hunt()
+  return preview()
+
 
 # present BIG Google map such that
 # user can choose Area of Interest
@@ -164,11 +166,12 @@ def imgdata():
 
 #changeme: need to run Pytorch model here but 
 #repl.it limits disk space
-@app.route('/detect/')
+@app.route('/detect/', methods=['get', 'post'])
 def detect():
-  pred = [
-    {'x':100, 'y':100, 'w':20, 'h':20}
-  ]
+  from poolspotter import PoolSpotter
+  spotter = PoolSpotter()
+  img = {}
+  pred = spotter.predict_pools_on_img(img)
   return json.dumps(pred)
 
 

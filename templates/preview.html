@@ -4,89 +4,121 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
 <title>Preview</title>
 
 <style>
 
-#map-container {
+.imgContainer {
+  display: inline-block;
+  position: relative;
   width: 400px;
   height: 400px;
+  padding: 0px;
 }
 
 </style>
 </head><body>
 
-<script src="/static/pools/mercata.js"></script>
+<p>Preview</p>
+<div class="wrapper">
+  <div class="imgContainer">
 
-<script src="/static/pools/box.js"></script>
-
-<div class="map-container">
-  <img id="map" src="{{src}}">
-</div>
-
-<div class="col-md-2">      
-  <button class="" id="btnDetect" onclick=detect()> Detect </button>
-  <button class="" id="btnSave" onclick=save()> Save </button>
+    <img id="map" src="{{src}}" 
+    alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
+    
+    <canvas id="topCanvas" class="topLayer" width="400" height="400"
+     style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 2;"></canvas>
+  
+  </div>   
+  
+  <div class="" styel="z-index:3">      
+    <button class="" id="btnDetect" onclick=detect()> Detect </button>
+    <button class="" id="btnSave" onclick=save()> Save </button>
+  </div>
+  
 </div>
 
 <script>
 
-// -> IO -> String
+// click -> POST -> IO -> String
 function detect() {
 
-  var latLng = map.getCenter();
-  var zoom = map.getZoom();
+  const payload = makePayload();
 
   // server should send back [{x: y: w: h:}]
-  // draw recommendation using those...
-  fetch('/detect/?'+qry(latLng.lat(), latLng.lng(), 600, 600, zoom))
+  fetch('/detect/', {
+    method  : 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  })
   .then(response => response.json())
-  .then(data => {
-    data.forEach(xywh => {
-      var bounds = fromXYWHToBounds(xywh);
-      return placeTempRect(map, bounds, "#FF0000");
+  .then(rects => {
+    const ctx = document.getElementById("topCanvas").getContext('2d');
+ 
+    rects.forEach(xywh => {
+      renderPoolMark(xywh, ctx);
     });
-    console.log("Predictions:", data);
+
+    console.log("Predictions:", rects);
   });//fetch
-  return 'pools detected';
-}
+  return 'detecting pools';
+}//detect
 
+// {} ctx -> IO -> Int
+function renderPoolMark(rect, ctx) {
+  if (!rect) return 0;// just clear the top
+ 	ctx.fillStyle = "rgba(255`,165,0,1)";
+ 	ctx.strokeStyle = "rgba(255,165,0,1)";
+	ctx.font = "bold 16px Arial" ;
+  ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+  return 1;
+}//renderPoolMark
 
+// -> {imgData:}
+function makePayload() {
+
+  const imageObj = document.getElementById('map');
+  //alert(imageObj.width+'x'+imageObj.height);
+  // send over clean image
+  const canvas = document.createElement("canvas");
+  canvas.width = imageObj.width;//critical
+  canvas.height = imageObj.height;//critical
+  canvas.getContext("2d").drawImage(imageObj, 0, 0, imageObj.width, imageObj.height);
+  const payload = {
+    imgData : canvas.toDataURL('image/jpeg', 1.0)
+  };
+  console.log("payload:", payload);
+  //alert("img data size: "+payload.imgData.length);
+  return payload;
+}//makePayload
+
+// click -> POST -> Bye
 function save() {
 
-    const imageObj = document.getElementById('map');
-    //alert(imageObj.width+'x'+imageObj.height);
-    // send over clean image
-    const canvas = document.createElement("canvas");
-    canvas.width = imageObj.width;//critical
-    canvas.height = imageObj.height;//critical
+  const payload = makePayload();
 
-    canvas.getContext("2d").drawImage(imageObj, 0, 0, imageObj.width, imageObj.height);
-
-    const payload = {
-      imgData : canvas.toDataURL('image/jpeg', 1.0)
-    };
-    console.log("payload 2 map images", payload);
-    //alert("img data size: "+payload.imgData.length);
-
-    fetch('/new/', {
-      method  : 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    }).then(response => {
-      console.log(response.headers.get('Content-Type'));
-      console.log(response.headers.get('Date'));
-
-      console.log(response.status);
-      console.log(response.statusText);
-      console.log(response.type);
-      console.log(response.url);
-      return response.text();
-    }).then(whereToGo => {
-      window.location.replace(whereToGo);
-    });
+  fetch('/new/', {
+    method  : 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  }).then(response => {
+    console.log(response.headers.get('Content-Type'));
+    console.log(response.headers.get('Date'));
+    console.log('status:', response.status);
+    console.log('statusText:', response.statusText);
+    console.log('type', response.type);
+    console.log('url:', response.url);
+    const text = response.text();
+    console.log(text);
+    return text;
+  }).then(whereToGo => {
+    window.location.replace(whereToGo);
+  });
 
 }//save
 
