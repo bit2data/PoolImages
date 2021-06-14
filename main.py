@@ -8,8 +8,7 @@ app = Flask('app', static_url_path='/static')
 
 @app.route('/')
 def home():
-  #return imgdata()
-  return preview()
+  return imgdata()
 
 
 # present BIG Google map such that
@@ -157,8 +156,6 @@ def imgdata():
       name = filename.split('.')[0] # -> 123
       with app.open_resource(pth) as fin:
         obj = json.load(fin)
-        obj['image_path'] = '/static/pools/images/{}/{}.jpg'.format(src, name)
-        obj['json_path'] = '/static/pools/images/{}/{}.json'.format(src, name)
         data.append(obj)
   return json.dumps(data)
 

@@ -9,42 +9,85 @@
 <title>Prediction</title>
 
 <style>
+
 .wrapper {
-  touch-action: none;
+  display: table;
+  margin: 0 auto;
 }
 
-.imgContainer {
+.img-container {
   display: inline-block;
   position: relative;
   width: 400px;
   height: 400px;
   padding: 0px;
 }
+
+.buttons-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+}
+
+.btn {
+	box-shadow:inset 0px 0px 14px -3px #f2fadc;
+	background:linear-gradient(to bottom, #dbe6c4 5%, #9ba892 100%);
+	background-color:#dbe6c4;
+	border-radius:6px;
+	border:1px solid #b2b8ad;
+	display:inline-block;
+	cursor:pointer;
+	color:#757d6f;
+	font-family:Arial;
+	font-size:15px;
+	font-weight:bold;
+	padding:6px 24px;
+	text-decoration:none;
+	text-shadow:0px 1px 0px #ced9bf;
+}
+.btn:hover {
+	background:linear-gradient(to bottom, #9ba892 5%, #dbe6c4 100%);
+	background-color:#9ba892;
+}
+.btn:active {
+	position:relative;
+	top:1px;
+}
+
 </style>
 </head><body>
 
-<p>Human vs Predictions</p>
 <div class="wrapper">
-    <div class="imgContainer">
-      <img id="baseImage" 
-      alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
-      <canvas id="bottomCanvas" class="bottomLayer" width="400" height="400"
-      style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
-    </div>   
-    <div class="imgContainer">
-      <img id="baseImageR" 
-      alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
-      <canvas id="bottomCanvasR" class="bottomLayer" width="400" height="400"
-      style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
+    <div>
+      <span>On the left, pools are <a id="editLink" href="">marked by hand</a>. 
+        On the right, predictions made by an object detection model are displayed.</span>
     </div>
+    <p></p>
+    <div class="images-container">
+      <div class="img-container">
+        <img id="baseImage" 
+        alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
+        <canvas id="bottomCanvas" class="bottomLayer" width="400" height="400"
+        style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
+      </div>   
+  
+      <div class="img-container">
+        <img id="baseImageR" 
+        alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
+        <canvas id="bottomCanvasR" class="bottomLayer" width="400" height="400"
+        style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
+      </div>
+    </div>
+
+    <div class="buttons-container">
+      <button id="prevBtn" class="btn">&larr; Prev</button>
+      <span id="filename"></span>
+      <button id="nextBtn" class="btn">Next &rarr;</button>
+    </div>
+
+    <p id="note"></p>
 </div>
-<div>
-  <button id="prevBtn" class="buttonStyle">&larr; Prev</button>
-  <input type="text" id="filename">
-  <button onclick=openEditor()>Edit</button>
-  <input type="text" id="note">
-  <button id="nextBtn" class="buttonStyle">Next &rarr;</button>
-</div>
+
 <script>
 var pages = [];//JSON get fetched and mages are populated on load
 //navigation logic
@@ -77,15 +120,6 @@ window.onpopstate = function (e) {
   if (e.state != null) pageIndex = e.state;
   return renderPage(currPage());
 };
-
-function openEditor() {
-  const jpath = currPage().json_path;
-  let tokens = jpath.split('/');
-  console.log(tokens, tokens[4], tokens[5]);
-  const where = `/static/pools/pool_edit.html?p=${tokens[4]}/${tokens[5]}`;
-  console.log('go to', where);
-  location.replace(where);
-}
 // end of navigation logic
 
 // {} -> Bool
@@ -94,6 +128,13 @@ function renderPage (page) {
     alert('nothing to display')
     return false;
   }
+
+  const jpath = page.json_path;
+  let tokens = jpath.split('/');
+  console.log(tokens, tokens[4], tokens[5]);
+  const where = `/static/pools/pool_edit.html?p=${tokens[4]}/${tokens[5]}`;
+  document.getElementById('editLink').href = where;
+
   renderMapImage(page.image_path);
   var ctx = document.getElementById("bottomCanvas").getContext('2d');
   renderPoolMarks(page.rects, ctx);
@@ -115,7 +156,11 @@ function renderMapImage(src) {
     //load predictions and mark em
     pred_json_path = src.replace('images', 'predictions').replace('jpg', 'json');
     fetch(pred_json_path)
-    .then(response => response.json())
+    .then(response => {
+      if (response.ok)  return response.json();
+      console.log(response.statusText);
+      throw new Error('Cannot load Predciton JSON');
+    })
     .then(pred => {
       console.log(pred);
       var ctx = document.getElementById('bottomCanvasR').getContext('2d');
@@ -139,11 +184,13 @@ function renderMapImage(src) {
     	  ctx.font = "bold 16px Arial" ;
         ctx.strokeRect(x, y, w, h);
       });
+    })
+    .catch(err => {
+      console.log(err);
     });
   };
 
-  var filename = src.split('/').pop();
-  document.getElementById('filename').value = filename;
+  document.getElementById('filename').innerHTML = `<a href="${src}">${src}</a>`;
 
   return true;
 }
@@ -155,7 +202,7 @@ function renderPoolMarks(rects, ctx) {
   rects.forEach(rect => {
     renderPoolMark(rect, ctx);
   });
-  document.getElementById('note').value = rects.length + ' pools marked';
+  document.getElementById('note').innerText += rects.length + ' pools marked';
   return rects.length;
 }
 
@@ -196,17 +243,21 @@ window.onload = function () {
   .then(items => {
     pages = items;
 
+    //?page=123 
     var urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('page')) {
       var pageNum = Number(urlParams.get('page'));
       if (!isNaN(pageNum)) {
-        pageIndex = pageNum;
+        pageIndex = pageNum;// what if not Int?
         return renderPage(currPage());
       }
-    } 
+    }
+
     return nextBtn.click();
   });//end fetching data and rendering
+
 };//onload
+
 </script>
 </body>
 </html>
