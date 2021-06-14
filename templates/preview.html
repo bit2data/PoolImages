@@ -9,6 +9,11 @@
 
 <style>
 
+.wrapper {
+  display: table;
+  margin: 0 auto;
+}
+
 .imgContainer {
   display: inline-block;
   position: relative;
@@ -17,11 +22,18 @@
   padding: 0px;
 }
 
+.buttons-container {
+  display: table;
+  margin: 0 auto;
+}
+
 </style>
 </head><body>
 
-<p>Preview</p>
 <div class="wrapper">
+  
+  <p>Preview</p>
+  
   <div class="imgContainer">
 
     <img id="map" src="{{src}}" 
@@ -32,7 +44,7 @@
   
   </div>   
   
-  <div class="" styel="z-index:3">      
+  <div class="buttons-container">      
     <button class="" id="btnDetect" onclick=detect()> Detect </button>
     <button class="" id="btnSave" onclick=save()> Save </button>
   </div>

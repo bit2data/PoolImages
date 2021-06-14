@@ -8,7 +8,8 @@ app = Flask('app', static_url_path='/static')
 
 @app.route('/')
 def home():
-  return imgdata()
+  #return imgdata()
+  return preview()
 
 
 # present BIG Google map such that
