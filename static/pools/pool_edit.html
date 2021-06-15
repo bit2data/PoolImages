@@ -12,6 +12,11 @@
 .wrapper {
   touch-action: none;
 }
+ 
+.outer { 
+  display: table;
+  margin: 0 auto;
+}
 
 .imgContainer {
   display: inline-block;
@@ -20,26 +25,32 @@
   height: 400px;
   padding: 0px;
 }
+
+.btns-container {
+  display: flex;
+  justify-content: space-between;
+}
+
 </style>
 </head><body>
-
-<p>Add or Remove</p>
-<div class="wrapper">
-    <div class="imgContainer">
-      <img id="baseImage" 
-      alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
-      <canvas id="bottomCanvas" class="bottomLayer" width="400" height="400"
-      style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
-      <canvas id="topCanvas" class="topLayer" width="400" height="400"
-       style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 2;"></canvas>
-    </div>   
+<div class="outer">
+  <p>Add or Remove</p>
+  <div class="wrapper">
+      <div class="imgContainer">
+        <img id="baseImage" 
+        alt="Image alt text" style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 0;">
+        <canvas id="bottomCanvas" class="bottomLayer" width="400" height="400"
+        style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 1;"></canvas>
+        <canvas id="topCanvas" class="topLayer" width="400" height="400"
+         style="position: absolute; left: 0; top: 0; padding: 0px; z-index: 2;"></canvas>
+      </div>   
+  </div>
+  <div class="btns-container">
+    <input type="text" id="filename">
+    <input type="text" id="note">
+    <button id="scaleBtn" class="buttonStyle" onclick=save()>Save</button>
+  </div>
 </div>
-<div>
-  <input type="text" id="filename">
-  <input type="text" id="note">
-  <button id="scaleBtn" class="buttonStyle" onclick=save()>Save Changes</button>
-</div>
-
 <script>
 
 var page;//123.json contains img path, [{x: y: w: h:}] 
