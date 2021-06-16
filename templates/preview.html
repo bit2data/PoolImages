@@ -53,12 +53,14 @@
 
 <script>
 
+let rects = [];
+
 // click -> POST -> IO -> String
 function detect() {
 
   const payload = makePayload();
 
-  // server should send back {'boxes':[xmin ymin xmax ymax], 'scors': [probability]}
+  // server should send back {'rects':[{x y w h}], 'scors': [probability]}
   fetch('/detect/', {
     method  : 'POST',
     headers: {
@@ -73,32 +75,27 @@ function detect() {
     console.log('statusText:', response.statusText);
     console.log('type', response.type);
     console.log('url:', response.url);
-    const prediction = response.json();
-    console.log(prediction);
-    return prediction;
+    return response.json();
   })
   .then(prediction => {
+    console.log(prediction);
+    rects = prediction.rects;
     const ctx = document.getElementById("topCanvas").getContext('2d');
- 
-    prediction.boxes.forEach(box => {
-      const xywh = {
-        x: box[0], 
-        y: box[1],
-        w: box[2] - box[0],
-        h: box[3] - box[1]
-      };
+    rects.forEach(xywh => {
+      console.log(xywh);
       renderPoolMark(xywh, ctx);
     });
-
-    console.log("Prediction:", prediction);
+  })
+  .catch(err => {
+    console.log(err);
   });//fetch
   return 'detecting pools';
 }//detect
 
 // {} ctx -> IO -> Int
 function renderPoolMark(rect, ctx) {
-  if (!rect) return 0;// just clear the top
- 	ctx.fillStyle = "rgba(255`,165,0,1)";
+  console.log(rect, ctx);
+ 	ctx.fillStyle = "rgba(255,165,0,1)";
  	ctx.strokeStyle = "rgba(255,165,0,1)";
 	ctx.font = "bold 16px Arial" ;
   ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
@@ -116,7 +113,8 @@ function makePayload() {
   canvas.height = imageObj.height;//critical
   canvas.getContext("2d").drawImage(imageObj, 0, 0, imageObj.width, imageObj.height);
   const payload = {
-    imgData : canvas.toDataURL('image/jpeg', 1.0)
+    imgData : canvas.toDataURL('image/jpeg', 1.0),
+    rects: rects
   };
   console.log("payload:", payload);
   //alert("img data size: "+payload.imgData.length);
@@ -129,7 +127,7 @@ function save() {
   const payload = makePayload();
 
   fetch('/new/', {
-    method  : 'POST',
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },

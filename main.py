@@ -8,8 +8,8 @@ app = Flask('app', static_url_path='/static')
 
 @app.route('/')
 def home():
-  #return imgdata()
-  return preview()
+  return data()
+  #return preview()
 
 
 # present BIG Google map such that
@@ -37,10 +37,14 @@ def preview():
   src = '/staticmap?lat={lat}&lng={lng}&zoom={zoom}&width={width}&height={height}'.format(**d)
   return render_template('preview.html', src=src)
 
+
 # from /preview/ user sends imgdata to be saved
 @app.route('/new/', methods=['GET', 'POST'])
 def new():
   payload = request.json
+  #
+  # handle image input
+  #
   imgData = payload['imgData']
   #imgData = request.values.get("imgData")
   print('image data size', len(imgData))
@@ -50,6 +54,14 @@ def new():
   print('size after split:', len(data))
   imgdata = base64.b64decode(data)
 
+  #
+  # preview is passing along any predictions that took place 
+  #
+  rects = payload['rects']
+  
+  #
+  # generate some randome file names to store image and {}
+  #
   import random 
   from datetime import datetime
   random.seed(datetime.now())
@@ -61,23 +73,23 @@ def new():
 
   #changeme: fill with actual predictions 
   data = {
-    "rect_count": 2, 
-    "rects": [
-      {"x": 76, "y": 142, "w": 22, "h": 22}, 
-      {"x": 171, "y": 270, "w": 25, "h": 17}
-    ], 
+    "rect_count": len(rects), 
+    "rects": rects, 
     "w": 400, 
     "h": 400, 
     "image_path": img_path, 
     "json_path": json_path
   }
-
-  record_as_json(data, '.'+json_path)
-
-  with open('.'+img_path, "wb") as fout:
-    fout.write(imgdata)
+  # POST is for real
+  if request.method == 'POST':
+    record_as_json(data, '.'+json_path)
+    with open('.'+img_path, "wb") as fout:
+      fout.write(imgdata)
+    return "/static/pools/pool_edit.html?p=new/{}.json".format(rchars)
   
-  return "/static/pools/pool_edit.html?p=new/{}.json".format(rchars)
+  # GET is for testig input output handling without actually writint to files 
+  return json.dumps(data)
+
 
 # serve Image Data
 # e.g. Input: /staticmap?lat=43.35975&lng=-79.77&zoom=18&width=400&height=400
@@ -138,14 +150,15 @@ def proxy_ref_info(request):
     if first in "pd":
       parts = rest.split("/", 1)
       r = (parts[0], parts[1]) if len(parts) == 2 else (parts[0], "")
-      LOG.info("Referred by proxy host, uri: %s, %s", r[0], r[1])
+      print("Referred by proxy host, uri: %s, %s", r[0], r[1])
       return r
   return None
 
+
 # -> [{}]
 # serve from 3 directories where the images and corresponding .json files reside
-@app.route('/imgdata/')
-def imgdata():
+@app.route('/data/')
+def data():
   data = []
   srcs = ['new', 'test', 'train']
   for src in srcs:
@@ -161,29 +174,34 @@ def imgdata():
   return json.dumps(data)
 
 
-#changeme: need to run Pytorch model here but 
-#repl.it limits disk space
-@app.route('/detect/', methods=['get', 'post'])
+# {imgData:"data:image/jpeg;base64,xxxx} -> {rects:[{x:Int, y:Int, w:Int, h:Int}], boxes:[[Int Int Int Int]], scores:[Int]}
+@app.route('/detect/', methods=['GET', 'POST'])
 def detect():
   from PIL import Image
-  from poolspotter import PoolSpotter
-
-  spotter = PoolSpotter()
   
   payload = request.json
   imgData = payload['imgData']
   print('image data size', len(imgData))
   #"data:image/png;base64,iVBORw0KGgo....""
   imgtype, data = imgData.split(',', 1)
-  print('imgtype', imgtype) # data:image/jpeg;base64
-  print('size after split:', len(data))
-  img = Image.open(io.BytesIO( base64.b64decode(data)))
+  #print('imgtype', imgtype) # data:image/jpeg;base64
+  #print('size after split:', len(data))
+  img = Image.open(io.BytesIO(base64.b64decode(data)))
+  return json.dumps(detect_on_img(img))
 
-  pred = spotter.predict_pools_on_img(img)
+
+# Image -> {rects:[{x:Int, y:Int, w:Int, h:Int}], boxes:[[Int Int Int Int]], scores:[Int]}
+# separated out for testing
+def detect_on_img(img):
+  from poolspotter import PoolSpotter
+
+  pred = PoolSpotter().predict_pools_on_img(img)
+  pred['rects'] = [{'x': box[0], 'y': box[1], 'w': box[2]-box[0], 'h': box[3]-box[1]} for box in pred['boxes']]
   print('predictions', pred)
-  return json.dumps(pred)
+  return pred
 
 
+# {} -> IO -> {}
 @app.route('/save/', methods = ['POST'])
 def save_page():
   content = request.json

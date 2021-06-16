@@ -133,7 +133,9 @@ function renderPage (page) {
   let tokens = jpath.split('/');
   console.log(tokens, tokens[4], tokens[5]);
   const where = `/static/pools/pool_edit.html?p=${tokens[4]}/${tokens[5]}`;
+
   document.getElementById('editLink').href = where;
+  document.getElementById('note').innerText = '';
 
   renderMapImage(page.image_path);
   var ctx = document.getElementById("bottomCanvas").getContext('2d');
@@ -183,6 +185,8 @@ function renderMapImage(src) {
      	  ctx.strokeStyle = rgba;
     	  ctx.font = "bold 16px Arial" ;
         ctx.strokeRect(x, y, w, h);
+        
+        document.getElementById('note').innerText += `\n pool at (${x},${y}) with score=${score}`;
       });
     })
     .catch(err => {
@@ -238,7 +242,7 @@ window.onload = function () {
   });
 
   //fetching data
-  fetch('/imgdata/')
+  fetch('/data/')
   .then(response => response.json())
   .then(items => {
     pages = items;
