@@ -91,7 +91,7 @@ def new():
   return json.dumps(data)
 
 
-# serve Image Data
+# serve Image Data corresponding to the area of interest in /hunt/
 # e.g. Input: /staticmap?lat=43.35975&lng=-79.77&zoom=18&width=400&height=400
 @app.route('/staticmap')
 def staticmap():

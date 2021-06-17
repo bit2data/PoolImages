@@ -2,13 +2,20 @@ import requests
 import json
 
 
-# -> {}
+# -> [{}]
 def test_data():
   resp = requests.get('http://localhost:5000/data/')
   return resp.json()
 
 
-# -> [{x y w h}]
+# {json_path: } -> {json_path: }
+def test_save(payload):
+  resp = requests.post('http://localhost:5000/save/', json=payload)
+  assert payload == resp.json()
+  return payload, resp.json() 
+
+
+# -> {rects:[{x:Int y:Int w:Int h:Int}] scores:[Int]}
 def test_detect_direct():
   from PIL import Image
   from main import detect_on_img
@@ -21,10 +28,10 @@ def test_detect_direct():
       assert isinstance(xywh['y'], int)
       assert isinstance(xywh['w'], int)
       assert isinstance(xywh['h'], int)
-
   return pred
 
 
+# -> {} {} 
 def test_detect():
     import base64
     
@@ -36,20 +43,24 @@ def test_detect():
         'imgData': 'data:image/jpeg;base64,{}'.format(img_str)
     }
     resp = requests.post('http://localhost:5000/detect/', json=payload) # json=payload takes care of headers automatically
-
     return resp.json(), payload
 
 
+# -> {}
 def test_new(rects, payload):
   payload['rects'] = rects
   resp = requests.get('http://localhost:5000/new/', json=payload)
-  return resp.json()
+  data = resp.json()
+  assert rects == data['rects']
+  return data
 
 
 
 
 if __name__ == '__main__':
-    print('test_data() =>', test_data()[:1])
+    data = test_data()
+    print('test_data() =>', data[0])
+    print('test_save()', test_save(data[0])) 
     #pred = test_detect_direct()
     #print('test_detect_direct() =>', pred)
     pred, payload = test_detect()
